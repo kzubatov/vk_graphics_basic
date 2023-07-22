@@ -1,8 +1,8 @@
 #version 450
 #extension GL_ARB_separate_shader_objects : enable
 
-// #define MEDIAN
-#define BILATERAL
+#define MEDIAN
+// #define BILATERAL
 const vec3 h = vec3(0.5); // bilateral filter: exp(-(i^2 + j^2) / size^2 - colorDif^2 / h^2)
 
 layout (location = 0) out vec4 color;
@@ -14,10 +14,12 @@ layout (location = 0) in VS_OUT
   vec2 texCoord;
 } surf;
 
-const int distToBorder = 2;
-const int size = 2 * distToBorder + 1;
+const int distToBorder = 1;
 
-vec3 c[size * size];
+const int size = 2 * distToBorder + 1;
+const int size2 = size * size;
+
+vec3 c[size2];
 
 void getSample() {
   vec2 offset = vec2(dFdxFine(surf.texCoord.x), dFdyFine(surf.texCoord.y));
@@ -29,48 +31,115 @@ void getSample() {
   }
 }
 
-// Improves performance only for MEDIAN filter
+void getSampleOddCol() {
+  const vec2 offset = vec2(dFdxFine(surf.texCoord.x), dFdyFine(surf.texCoord.y));
+  const int x = int(gl_FragCoord.x) & 1;
+  const bool isLeft = x == 0;
+  const uint swapSize =  size * (size - 1) >> 1;
+
+  vec3 leftToRightSwap[swapSize];
+  vec3 rightToLeftSwap[swapSize];
+  
+  int swapCounter = 0;
+  int index = 0;
+  if (isLeft) {
+    for (int i = -distToBorder; i <= distToBorder; ++i) {
+      c[index] = textureLod(colorTex, surf.texCoord + vec2(-distToBorder, i) * offset, 0).rgb;
+      for (int j = -distToBorder + 2; j <= distToBorder; j += 2) {
+        index += 2;
+        c[index] = textureLod(colorTex, surf.texCoord + vec2(j, i) * offset, 0).rgb;
+        leftToRightSwap[swapCounter] = c[index];
+        rightToLeftSwap[swapCounter++] = vec3(0);
+      }
+      ++index;
+    }
+  } else {
+    for (int i = -distToBorder; i <= distToBorder; ++i) {
+      for (int j = -distToBorder; j <= distToBorder - 2; j += 2) {
+        c[index] = textureLod(colorTex, surf.texCoord + vec2(j, i) * offset, 0).rgb;
+        leftToRightSwap[swapCounter] = vec3(0);
+        rightToLeftSwap[swapCounter++] = c[index];
+        index += 2;
+      }
+      c[index] = textureLod(colorTex, surf.texCoord + vec2(distToBorder, i) * offset, 0).rgb;
+      ++index;
+    }
+  }
+
+  for (int i = 0; i < swapSize; ++i) {
+    leftToRightSwap[i] = -dFdxFine(leftToRightSwap[i]);
+    rightToLeftSwap[i] = dFdxFine(rightToLeftSwap[i]);
+  }
+
+  index = 1;
+  swapCounter = 0;
+  if (isLeft) {
+    for (int i = -distToBorder; i <= distToBorder; ++i) {
+      for (int j = -distToBorder + 1; j <= distToBorder - 1; j += 2) {
+        c[index] = rightToLeftSwap[swapCounter++];
+        index += 2;
+      }
+      ++index;
+    }
+  } else {
+    for (int i = -distToBorder; i <= distToBorder; ++i) {
+      for (int j = -distToBorder + 1; j <= distToBorder - 1; j += 2) {
+        c[index] = leftToRightSwap[swapCounter++];
+        index += 2;
+      }
+      ++index;
+    }
+  }
+}
+
 void getSampleExperimental() {
   const vec2 offset = vec2(dFdxFine(surf.texCoord.x), dFdyFine(surf.texCoord.y));
   const ivec2 iCoord = ivec2(gl_FragCoord.xy) & 1;
   const int fragNum = iCoord.x + (iCoord.y << 1);
-  const uint swapSize =  size * size - 1 >> 2;
-
-  bool isLeft = iCoord.x == 0;
-  bool isDown = iCoord.y == 0;
+  const uint swapSize =  size2 - 1 >> 2;
+  const int sizepsize = size << 1; 
   
   vec3 leftToRightSwap[swapSize];
   vec3 rightToLeftSwap[swapSize];
   vec3 downToUpSwap[swapSize];
   vec3 upToDownSwap[swapSize];
-
+  
   int vI, hI;
-  int index;
-  int swapIndex = 0;
+  int borderSwapIndex = 0;
+  int internalSwapIndex = size >> 1;
+
+  int index = size + 1;
+  for (int i = -distToBorder + 1; i <= distToBorder - 1; i += 2) {
+    for (int j = -distToBorder + 1; j <= distToBorder - 1; j += 2) {
+      c[index] = textureLod(colorTex, surf.texCoord + vec2(j, i) * offset, 0).rgb;
+      index += 2;
+    }
+    index += size + 1;
+  }
+  
   switch (fragNum) {
   case 0:
     c[0] = textureLod(colorTex, surf.texCoord + vec2(-distToBorder) * offset, 0).rgb;
     vI = 2;
-    hI = size << 1;
+    hI = sizepsize;
+    index = sizepsize + 2;
+
     for (int i = -distToBorder + 2; i <= distToBorder; i += 2) {
       c[vI] = textureLod(colorTex, surf.texCoord + vec2(i, -distToBorder) * offset, 0).rgb;
       c[hI] = textureLod(colorTex, surf.texCoord + vec2(-distToBorder, i) * offset, 0).rgb;
-      leftToRightSwap[swapIndex] = c[vI];
-      rightToLeftSwap[swapIndex] = vec3(0);
-      downToUpSwap[swapIndex] = c[hI];
-      upToDownSwap[swapIndex++] = vec3(0);
+      leftToRightSwap[borderSwapIndex] = c[vI];
+      rightToLeftSwap[borderSwapIndex] = vec3(0);
+      downToUpSwap[borderSwapIndex] = c[hI];
+      upToDownSwap[borderSwapIndex++] = vec3(0);
       vI += 2;
-      hI += size << 1;
-    }
-    
-    index = (size << 1) + 2;
-    for (int i = -distToBorder + 2; i <= distToBorder; i += 2) {
+      hI += sizepsize;
+
       for (int j = -distToBorder + 2; j <= distToBorder; j += 2) {
         c[index] = textureLod(colorTex, surf.texCoord + vec2(j, i) * offset, 0).rgb;
-        leftToRightSwap[swapIndex] = c[index];
-        rightToLeftSwap[swapIndex] = vec3(0);
-        downToUpSwap[swapIndex] = c[index];
-        upToDownSwap[swapIndex++] = vec3(0);
+        leftToRightSwap[internalSwapIndex] = c[index];
+        rightToLeftSwap[internalSwapIndex] = vec3(0);
+        downToUpSwap[internalSwapIndex] = c[index];
+        upToDownSwap[internalSwapIndex++] = vec3(0);
         index += 2;
       }
       index += size + 1;
@@ -80,25 +149,23 @@ void getSampleExperimental() {
     c[size - 1] = textureLod(colorTex, surf.texCoord + vec2(distToBorder, -distToBorder) * offset, 0).rgb;
     vI = 0;
     hI = 3 * size - 1;
-    for (int i = -distToBorder; i <= distToBorder - 2; i += 2) {
-      c[vI] = textureLod(colorTex, surf.texCoord + vec2(i, -distToBorder) * offset, 0).rgb;
-      c[hI] = textureLod(colorTex, surf.texCoord + vec2(distToBorder, i + 2) * offset, 0).rgb;
-      leftToRightSwap[swapIndex] = vec3(0);
-      rightToLeftSwap[swapIndex] = c[vI];
-      downToUpSwap[swapIndex] = c[hI];
-      upToDownSwap[swapIndex++] = vec3(0);
-      vI += 2;
-      hI += size << 1;
-    }
-
-    index = size << 1;
+    index = sizepsize;
     for (int i = -distToBorder + 2; i <= distToBorder; i += 2) {
+      c[vI] = textureLod(colorTex, surf.texCoord + vec2(i - 2, -distToBorder) * offset, 0).rgb;
+      c[hI] = textureLod(colorTex, surf.texCoord + vec2(distToBorder, i) * offset, 0).rgb;
+      leftToRightSwap[borderSwapIndex] = vec3(0);
+      rightToLeftSwap[borderSwapIndex] = c[vI];
+      downToUpSwap[borderSwapIndex] = c[hI];
+      upToDownSwap[borderSwapIndex++] = vec3(0);
+      vI += 2;
+      hI += sizepsize;
+  
       for (int j = -distToBorder; j <= distToBorder - 2; j += 2) {
         c[index] = textureLod(colorTex, surf.texCoord + vec2(j, i) * offset, 0).rgb;
-        leftToRightSwap[swapIndex] = vec3(0);
-        rightToLeftSwap[swapIndex] = c[index];
-        downToUpSwap[swapIndex] = c[index];
-        upToDownSwap[swapIndex++] = vec3(0);
+        leftToRightSwap[internalSwapIndex] = vec3(0);
+        rightToLeftSwap[internalSwapIndex] = c[index];
+        downToUpSwap[internalSwapIndex] = c[index];
+        upToDownSwap[internalSwapIndex++] = vec3(0);
         index += 2;
       }
       index += size + 1;
@@ -108,25 +175,23 @@ void getSampleExperimental() {
     c[size * (size - 1)] = textureLod(colorTex, surf.texCoord + vec2(-distToBorder, distToBorder) * offset, 0).rgb;
     vI = size * (size - 1) + 2;
     hI = 0;
+    index = 2;
     for (int i = -distToBorder; i <= distToBorder - 2; i += 2) {
       c[vI] = textureLod(colorTex, surf.texCoord + vec2(i + 2, distToBorder) * offset, 0).rgb;
       c[hI] = textureLod(colorTex, surf.texCoord + vec2(-distToBorder, i) * offset, 0).rgb;
-      leftToRightSwap[swapIndex] = c[vI];
-      rightToLeftSwap[swapIndex] = vec3(0);
-      downToUpSwap[swapIndex] = vec3(0);
-      upToDownSwap[swapIndex++] = c[hI];
+      leftToRightSwap[borderSwapIndex] = c[vI];
+      rightToLeftSwap[borderSwapIndex] = vec3(0);
+      downToUpSwap[borderSwapIndex] = vec3(0);
+      upToDownSwap[borderSwapIndex++] = c[hI];
       vI += 2;
-      hI += size << 1;
-    }
+      hI += sizepsize;
 
-    index = 2;
-    for (int i = -distToBorder; i <= distToBorder - 2; i += 2) {
       for (int j = -distToBorder + 2; j <= distToBorder; j += 2) {
         c[index] = textureLod(colorTex, surf.texCoord + vec2(j, i) * offset, 0).rgb;
-        leftToRightSwap[swapIndex] = c[index];
-        rightToLeftSwap[swapIndex] = vec3(0);
-        downToUpSwap[swapIndex] = vec3(0);
-        upToDownSwap[swapIndex++] = c[index];
+        leftToRightSwap[internalSwapIndex] = c[index];
+        rightToLeftSwap[internalSwapIndex] = vec3(0);
+        downToUpSwap[internalSwapIndex] = vec3(0);
+        upToDownSwap[internalSwapIndex++] = c[index];
         index += 2;
       }
       index += size + 1;
@@ -136,25 +201,23 @@ void getSampleExperimental() {
     c[size * size - 1] = textureLod(colorTex, surf.texCoord + vec2(distToBorder) * offset, 0).rgb;
     vI = size * (size - 1);
     hI = size - 1;
+    index = 0;
     for (int i = -distToBorder; i <= distToBorder - 2; i += 2) {
       c[vI] = textureLod(colorTex, surf.texCoord + vec2(i, distToBorder) * offset, 0).rgb;
       c[hI] = textureLod(colorTex, surf.texCoord + vec2(distToBorder, i) * offset, 0).rgb;
-      leftToRightSwap[swapIndex] = vec3(0);
-      rightToLeftSwap[swapIndex] = c[vI];
-      downToUpSwap[swapIndex] = vec3(0);
-      upToDownSwap[swapIndex++] = c[hI];
+      leftToRightSwap[borderSwapIndex] = vec3(0);
+      rightToLeftSwap[borderSwapIndex] = c[vI];
+      downToUpSwap[borderSwapIndex] = vec3(0);
+      upToDownSwap[borderSwapIndex++] = c[hI];
       vI += 2;
-      hI += size << 1;
-    }
-
-    index = 0;
-    for (int i = -distToBorder; i <= distToBorder - 2; i += 2) {
+      hI += sizepsize;
+    
       for (int j = -distToBorder; j <= distToBorder - 2; j += 2) {
         c[index] = textureLod(colorTex, surf.texCoord + vec2(j, i) * offset, 0).rgb;
-        leftToRightSwap[swapIndex] = vec3(0);
-        rightToLeftSwap[swapIndex] = c[index];
-        downToUpSwap[swapIndex] = vec3(0);
-        upToDownSwap[swapIndex++] = c[index];
+        leftToRightSwap[internalSwapIndex] = vec3(0);
+        rightToLeftSwap[internalSwapIndex] = c[index];
+        downToUpSwap[internalSwapIndex] = vec3(0);
+        upToDownSwap[internalSwapIndex++] = c[index];
         index += 2;
       }
       index += size + 1;
@@ -163,120 +226,118 @@ void getSampleExperimental() {
   }
 
   for (int i = 0; i < swapSize; ++i) {
-    leftToRightSwap[i] = abs(dFdxFine(leftToRightSwap[i]));
-    rightToLeftSwap[i] = abs(dFdxFine(rightToLeftSwap[i]));
-    downToUpSwap[i] = abs(dFdyFine(downToUpSwap[i]));
-    upToDownSwap[i] = abs(dFdyFine(upToDownSwap[i]));
+    leftToRightSwap[i] = -dFdxFine(leftToRightSwap[i]);
+    rightToLeftSwap[i] = dFdxFine(rightToLeftSwap[i]);
+    downToUpSwap[i] = -dFdyFine(downToUpSwap[i]);
+    upToDownSwap[i] = dFdyFine(upToDownSwap[i]);
   }
 
-  swapIndex = 0;
+  int borderVI;
+  int internalVI;
+  int borderHI;
+  int internalHI;
+  borderSwapIndex = 0;
+  internalSwapIndex = size >> 1;
   switch (fragNum) {
   case 0:
-    vI = 1;
-    hI = size;
-    for (int i = -distToBorder + 1; i <= distToBorder - 1; i += 2) {
-      c[vI] = rightToLeftSwap[swapIndex];
-      c[hI] = upToDownSwap[swapIndex++];
-      vI += 2;
-      hI += size << 1;
-    }
+    borderVI = 1;
+    internalVI = sizepsize + 1;
 
-    hI = size + 2;
-    for (int i = -distToBorder + 1; i <= distToBorder - 1; i += 2) {
-      vI += size + 1;
-      for (int j = -distToBorder + 1; j <= distToBorder - 1; j += 2) {
-        c[vI] = rightToLeftSwap[swapIndex];
-        c[hI] = upToDownSwap[swapIndex++];
-        vI += 2;
-        hI += 2;
+    borderHI = size;
+    internalHI = size + 2;
+
+    for (int i = distToBorder - 1; i >= 0; --i) {
+      c[borderVI] = rightToLeftSwap[borderSwapIndex];
+      c[borderHI] = upToDownSwap[borderSwapIndex++];
+      borderVI += 2;
+      borderHI += sizepsize;
+
+      for (int j = distToBorder - 1; j >= 0; --j) {
+        c[internalVI] = rightToLeftSwap[internalSwapIndex];
+        c[internalHI] = upToDownSwap[internalSwapIndex++];
+        internalVI += 2;
+        internalHI += 2;
       }
-      hI += size + 1;
+      internalVI += size + 1;
+      internalHI += size + 1;
     }
     break;
   case 1:
-    vI = 1;
-    hI = (size << 1) - 1; 
-    for (int i = -distToBorder + 1; i <= distToBorder - 1; i += 2) {
-      c[vI] = leftToRightSwap[swapIndex];
-      c[hI] = upToDownSwap[swapIndex++];
-      vI += 2;
-      hI += size << 1; 
-    }
+    borderVI = 1;
+    internalVI = sizepsize + 1;
 
-    hI = size;
-    for (int i = -distToBorder + 1; i <= distToBorder - 1; i += 2) {
-      vI += size + 1;
-      for (int j = -distToBorder + 1; j <= distToBorder - 1; j += 2) {
-        c[vI] = leftToRightSwap[swapIndex];
-        c[hI] = upToDownSwap[swapIndex++];
-        vI += 2;
-        hI += 2;
+    borderHI = sizepsize - 1;
+    internalHI = size;
+
+    for (int i = distToBorder - 1; i >= 0; --i) {
+      c[borderVI] = leftToRightSwap[borderSwapIndex];
+      c[borderHI] = upToDownSwap[borderSwapIndex++];
+      borderVI += 2;
+      borderHI += sizepsize;
+
+      for (int j = distToBorder - 1; j >= 0; --j) {
+        c[internalVI] = leftToRightSwap[internalSwapIndex];
+        c[internalHI] = upToDownSwap[internalSwapIndex++];
+        internalVI += 2;
+        internalHI += 2;
       }
-      hI += size + 1;
+      internalVI += size + 1;
+      internalHI += size + 1;
     }
     break;
   case 2:
-    vI = size * (size - 1) + 1;
-    hI = size;
-    for (int i = -distToBorder + 1; i <= distToBorder - 1; i += 2) {
-      c[vI] = rightToLeftSwap[swapIndex];
-      c[hI] = downToUpSwap[swapIndex++];
-      vI += 2;
-      hI += size << 1;
-    }
+    borderVI = size * (size - 1) + 1;
+    internalVI = 1;
 
-    vI = 1;
-    hI = size + 2;
-    for (int i = -distToBorder + 1; i <= distToBorder - 1; i += 2) {
-      for (int j = -distToBorder + 1; j <= distToBorder - 1; j += 2) {
-        c[vI] = rightToLeftSwap[swapIndex];
-        c[hI] = downToUpSwap[swapIndex++];
-        vI += 2;
-        hI += 2;
+    borderHI = size;
+    internalHI = size + 2;
+
+    for (int i = distToBorder - 1; i >= 0; --i) {
+      c[borderVI] = rightToLeftSwap[borderSwapIndex];
+      c[borderHI] = downToUpSwap[borderSwapIndex++];
+      borderVI += 2;
+      borderHI += sizepsize;
+
+      for (int j = distToBorder - 1; j >= 0; --j) {
+        c[internalVI] = rightToLeftSwap[internalSwapIndex];
+        c[internalHI] = downToUpSwap[internalSwapIndex++];
+        internalVI += 2;
+        internalHI += 2;
       }
-      vI += size + 1;
-      hI += size + 1;
+      internalVI += size + 1;
+      internalHI += size + 1;
     }
     break;
   case 3:
-    vI = size * (size - 1) + 1;
-    hI = (size << 1) - 1;
-    for (int i = -distToBorder + 1; i <= distToBorder - 1; i += 2) {
-      c[vI] = leftToRightSwap[swapIndex];
-      c[hI] = downToUpSwap[swapIndex++];
-      vI += 2;
-      hI += size << 1;
-    }
+    borderVI = size * (size - 1) + 1;
+    internalVI = 1;
 
-    vI = 1;
-    hI = size;
-    for (int i = -distToBorder + 1; i <= distToBorder - 1; i += 2) {
-      for (int j = -distToBorder + 1; j <= distToBorder - 1; j += 2) {
-        c[vI] = leftToRightSwap[swapIndex];
-        c[hI] = downToUpSwap[swapIndex++];
-        vI += 2;
-        hI += 2;
+    borderHI = sizepsize - 1;
+    internalHI = size;
+    
+    for (int i = distToBorder - 1; i >= 0; --i) {
+      c[borderVI] = leftToRightSwap[borderSwapIndex];
+      c[borderHI] = downToUpSwap[borderSwapIndex++];
+      borderVI += 2;
+      borderHI += sizepsize;
+
+      for (int j = distToBorder - 1; j >= 0; --j) {
+        c[internalVI] = leftToRightSwap[internalSwapIndex];
+        c[internalHI] = downToUpSwap[internalSwapIndex++];
+        internalVI += 2;
+        internalHI += 2;
       }
-      vI += size + 1;
-      hI += size + 1;
+      internalVI += size + 1;
+      internalHI += size + 1;
     }
     break;
-  }
-
-  index = size + 1;
-  for (int i = -distToBorder + 1; i <= distToBorder - 1; i += 2) {
-    for (int j = -distToBorder + 1; j <= distToBorder - 1; j += 2) {
-      c[index] = textureLod(colorTex, surf.texCoord + vec2(j, i) * offset, 0).rgb;
-      index += 2;
-    }
-    index += size + 1;
   }
 }
 
 #ifdef MEDIAN
 void sort() {
   bool flag = true;
-  for (int i = size * size - 1; flag && i > 0; --i) {
+  for (int i = size2 - 1; flag && i > 0; --i) {
     flag = false;
     for (int j = 0; j < i; ++j) {
       if (dot(vec3(0.30, 0.59, 0.11), c[j]) > dot(vec3(0.30, 0.59, 0.11), c[j + 1])) {
@@ -291,35 +352,34 @@ void sort() {
 #endif
 
 #ifdef BILATERAL
-void getKernel(out vec3 kernel[size * size]) {
-  const float size2 = float(kernel.length());
+void getKernel(out vec3 kernel[size2]) {
   const vec3 h2 = h * h;
   for (int i = -distToBorder; i <= distToBorder; ++i) {
     for (int j = -distToBorder; j <= distToBorder; ++j) {
       int index = j + distToBorder + (distToBorder + i) * size;
-      vec3 colorDif2 = c[index] - c[size * size / 2];
+      vec3 colorDif2 = c[index] - c[size2 / 2];
       colorDif2 *= colorDif2;
-      kernel[index] = exp(vec3(-float(i * i + j * j) / size2) - colorDif2 / h2);
+      kernel[index] = exp(vec3(-float(i * i + j * j) / float(size2)) - colorDif2 / h2);
     }
   }
 }
 #endif
 
 void main() {
-  getSample();
-  // getSampleExperimental();
-
+  // getSample();
+  // getSampleOddCol();
+  getSampleExperimental();
   #ifdef MEDIAN
   sort();
-  color = vec4(c[size * size / 2], 1.0);
+  color = vec4(c[size2 / 2], 1.0);
+  return;
   #endif
   
   #ifdef BILATERAL
-  vec3 kernel[size * size];
+  vec3 kernel[size2];
   getKernel(kernel);
   
   color = vec4(0,0,0,1);
-
   vec3 sum = vec3(0);
   for (int i = -distToBorder; i <= distToBorder; ++i) {
     for (int j = -distToBorder; j <= distToBorder; ++j) {
@@ -329,5 +389,6 @@ void main() {
     }
   }
   color.rgb /= sum;
+  return;
   #endif
 }
