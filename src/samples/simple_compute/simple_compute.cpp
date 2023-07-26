@@ -4,6 +4,10 @@
 #include <vk_buffers.h>
 #include <vk_utils.h>
 
+#include <chrono>
+#include <random>
+#include <ratio>
+
 SimpleCompute::SimpleCompute(uint32_t a_length) : m_length(a_length)
 {
 #ifdef NDEBUG
@@ -69,41 +73,70 @@ void SimpleCompute::CreateDevice(uint32_t a_deviceId)
   vkGetDeviceQueue(m_device, m_queueFamilyIDXs.transfer, 0, &m_transferQueue);
 }
 
+void hw_on_cpu(std::vector<float> &data) 
+{
+  std::vector<float> smoothed_data(data.size());
+  for (size_t i = 0; i < data.size(); ++i) 
+  {
+    float sum = 0;
+    for (size_t j = i < 3 ? 0 : i - 3; j < std::min(data.size(), i + 4); ++j)
+      sum += data[j];
+    smoothed_data[i] = sum / 7.0f;
+  }
+
+  for (size_t i = 0; i < data.size(); ++i) 
+    data[i] -= smoothed_data[i];
+}
 
 void SimpleCompute::SetupSimplePipeline()
 {
   std::vector<std::pair<VkDescriptorType, uint32_t> > dtypes = {
-      {VK_DESCRIPTOR_TYPE_STORAGE_BUFFER,             3}
+      {VK_DESCRIPTOR_TYPE_STORAGE_BUFFER,             2}
   };
 
   // Создание и аллокация буферов
-  m_A = vk_utils::createBuffer(m_device, sizeof(float) * m_length, VK_BUFFER_USAGE_STORAGE_BUFFER_BIT |
+  m_data = vk_utils::createBuffer(m_device, sizeof(float) * m_length, VK_BUFFER_USAGE_STORAGE_BUFFER_BIT |
                                                                        VK_BUFFER_USAGE_TRANSFER_DST_BIT);
-  m_B = vk_utils::createBuffer(m_device, sizeof(float) * m_length, VK_BUFFER_USAGE_STORAGE_BUFFER_BIT |
-                                                                       VK_BUFFER_USAGE_TRANSFER_DST_BIT);
-  m_sum = vk_utils::createBuffer(m_device, sizeof(float) * m_length, VK_BUFFER_USAGE_STORAGE_BUFFER_BIT |
+  m_diff = vk_utils::createBuffer(m_device, sizeof(float) * m_length, VK_BUFFER_USAGE_STORAGE_BUFFER_BIT |
                                                                        VK_BUFFER_USAGE_TRANSFER_SRC_BIT);
-  vk_utils::allocateAndBindWithPadding(m_device, m_physicalDevice, {m_A, m_B, m_sum}, 0);
+  vk_utils::allocateAndBindWithPadding(m_device, m_physicalDevice, {m_data, m_diff}, 0);
 
   m_pBindings = std::make_shared<vk_utils::DescriptorMaker>(m_device, dtypes, 1);
 
   // Создание descriptor set для передачи буферов в шейдер
   m_pBindings->BindBegin(VK_SHADER_STAGE_COMPUTE_BIT);
-  m_pBindings->BindBuffer(0, m_A);
-  m_pBindings->BindBuffer(1, m_B);
-  m_pBindings->BindBuffer(2, m_sum);
+  m_pBindings->BindBuffer(0, m_data);
+  m_pBindings->BindBuffer(1, m_diff);
   m_pBindings->BindEnd(&m_sumDS, &m_sumDSLayout);
 
   // Заполнение буферов
-  std::vector<float> values(m_length);
-  for (uint32_t i = 0; i < values.size(); ++i) {
-    values[i] = (float)i;
+  auto time = std::chrono::high_resolution_clock::now();
+
+  std::mt19937 generator((uint_fast32_t) std::chrono::high_resolution_clock::to_time_t(time));
+
+  std::vector<float> data (m_length);
+  for (float &x : data) 
+  {
+    x = std::min(float(generator()), 1000.0f);
+    x = generator() & 1 ? -x : x;
   }
-  m_pCopyHelper->UpdateBuffer(m_A, 0, values.data(), sizeof(float) * values.size());
-  for (uint32_t i = 0; i < values.size(); ++i) {
-    values[i] = (float)i * i;
+
+  m_pCopyHelper->UpdateBuffer(m_data, 0, data.data(), sizeof(float) * data.size());
+  
+  time = std::chrono::high_resolution_clock::now();
+  hw_on_cpu(data);
+  std::chrono::duration<double, std::milli> duration = std::chrono::high_resolution_clock::now() - time;
+  std::cout << "cpu: " << duration.count() << "ms" << std::endl;
+
+
+  float mid = 0.0;
+  for (float x : data) {
+    mid += x;
   }
-  m_pCopyHelper->UpdateBuffer(m_B, 0, values.data(), sizeof(float) * values.size());
+  mid /= m_length;
+
+  std::cout << "cpu_mid = " << mid << std::endl;
+
 }
 
 void SimpleCompute::BuildCommandBufferSimple(VkCommandBuffer a_cmdBuff, VkPipeline)
@@ -122,7 +155,7 @@ void SimpleCompute::BuildCommandBufferSimple(VkCommandBuffer a_cmdBuff, VkPipeli
 
   vkCmdPushConstants(a_cmdBuff, m_layout, VK_SHADER_STAGE_COMPUTE_BIT, 0, sizeof(m_length), &m_length);
 
-  vkCmdDispatch(a_cmdBuff, 1, 1, 1);
+  vkCmdDispatch(a_cmdBuff, 1024 * 64 - 1, 1, 1);
 
   VK_CHECK_RESULT(vkEndCommandBuffer(a_cmdBuff));
 }
@@ -135,9 +168,8 @@ void SimpleCompute::CleanupPipeline()
     vkFreeCommandBuffers(m_device, m_commandPool, 1, &m_cmdBufferCompute);
   }
 
-  vkDestroyBuffer(m_device, m_A, nullptr);
-  vkDestroyBuffer(m_device, m_B, nullptr);
-  vkDestroyBuffer(m_device, m_sum, nullptr);
+  vkDestroyBuffer(m_device, m_data, nullptr);
+  vkDestroyBuffer(m_device, m_diff, nullptr);
 
   vkDestroyPipelineLayout(m_device, m_layout, nullptr);
   vkDestroyPipeline(m_device, m_pipeline, nullptr);
@@ -162,7 +194,7 @@ void SimpleCompute::CreateComputePipeline()
   VkShaderModuleCreateInfo createInfo = {};
   createInfo.sType    = VK_STRUCTURE_TYPE_SHADER_MODULE_CREATE_INFO;
   createInfo.pCode    = code.data();
-  createInfo.codeSize = code.size()*sizeof(uint32_t);
+  createInfo.codeSize = code.size() * sizeof(uint32_t);
     
   VkShaderModule shaderModule;
   // Создаём шейдер в вулкане
@@ -217,15 +249,25 @@ void SimpleCompute::Execute()
   fenceCreateInfo.flags = 0;
   VK_CHECK_RESULT(vkCreateFence(m_device, &fenceCreateInfo, NULL, &m_fence));
 
+  auto time = std::chrono::high_resolution_clock::now();
+  
   // Отправляем буфер команд на выполнение
   VK_CHECK_RESULT(vkQueueSubmit(m_computeQueue, 1, &submitInfo, m_fence));
 
   //Ждём конца выполнения команд
   VK_CHECK_RESULT(vkWaitForFences(m_device, 1, &m_fence, VK_TRUE, 100000000000));
 
+  std::chrono::duration<double, std::milli> duration = std::chrono::high_resolution_clock::now() - time;
+  std::cout << "gpu: " << duration.count() << "ms" << std::endl;
+
   std::vector<float> values(m_length);
-  m_pCopyHelper->ReadBuffer(m_sum, 0, values.data(), sizeof(float) * values.size());
-  for (auto v: values) {
-    std::cout << v << ' ';
+  m_pCopyHelper->ReadBuffer(m_diff, 0, values.data(), sizeof(float) * values.size());
+  
+  float mid = 0.0;
+  for (float x : values) {
+    mid += x;
   }
+  mid /= m_length;
+
+  std::cout << "gpu_mid = " << mid << std::endl;
 }

@@ -1,8 +1,13 @@
 #include "simple_compute.h"
+#include <vector>
+#include <chrono>
+#include <random>
+#include <ratio>
+#include <iostream>
 
 int main()
 {
-  constexpr int LENGTH = 10;
+  constexpr int LENGTH = (1024 * 64 - 1) * 32;
   constexpr int VULKAN_DEVICE_ID = 0;
 
   std::shared_ptr<ICompute> app = std::make_unique<SimpleCompute>(LENGTH);
@@ -13,7 +18,6 @@ int main()
   }
 
   app->InitVulkan(nullptr, 0, VULKAN_DEVICE_ID);
-
   app->Execute();
 
   return 0;
