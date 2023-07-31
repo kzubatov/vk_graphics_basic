@@ -68,7 +68,6 @@ private:
     float4x4 projView;
     float4x4 model;
     float time;
-    uint instanceID;
   } pushConst2M;
 
   float4x4 m_worldViewProj;

@@ -13,7 +13,6 @@ layout(push_constant) uniform params_t
     mat4 mProjView;
     mat4 mModel;
     float time;
-    uint instanceID;
 } params;
 
 layout (location = 0 ) out VS_OUT

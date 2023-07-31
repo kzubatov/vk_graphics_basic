@@ -167,7 +167,7 @@ void SimpleShadowmapRender::DrawSceneCmd(VkCommandBuffer a_cmdBuff, const float4
   {
     auto inst              = m_pScnMgr->GetInstanceInfo(i);
     pushConst2M.model      = m_pScnMgr->GetInstanceMatrix(i);
-    pushConst2M.instanceID = i;
+
     vkCmdPushConstants(a_cmdBuff, m_basicForwardPipeline.getVkPipelineLayout(),
       stageFlags, 0, sizeof(pushConst2M), &pushConst2M);
 
