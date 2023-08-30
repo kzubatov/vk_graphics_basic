@@ -24,7 +24,7 @@ class IRenderGUI;
 class SimpleShadowmapRender : public IRender
 {
 public:
-  SimpleShadowmapRender(uint32_t a_width, uint32_t a_height);
+  SimpleShadowmapRender(uint32_t a_width, uint32_t a_height, uint32_t a_n = 100, float a_l = 300.f);
   ~SimpleShadowmapRender();
 
   uint32_t     GetWidth()      const override { return m_width; }
@@ -44,11 +44,20 @@ public:
   void DrawFrame(float a_time, DrawMode a_mode) override;
 
 private:
+  // grid params
+  uint32_t grid_n;
+  float grid_l;
+
   etna::GlobalContext* m_context;
   etna::Image mainViewDepth;
   etna::Image shadowMap;
   etna::Sampler defaultSampler;
   etna::Buffer constants;
+  etna::Buffer modelMatrices;
+
+  uint32_t cameraCount = 2u;
+  std::vector<etna::Buffer> visibleInstances;
+  std::vector<etna::Buffer> visibleInstancesInfo;
 
   VkCommandPool    m_commandPool    = VK_NULL_HANDLE;
 
@@ -65,18 +74,22 @@ private:
 
   struct
   {
-    float4x4 projView;
-    float4x4 model;
-  } pushConst2M;
+    float4 bBoxMin;
+    float4 bBoxMax;
+    float4 plane[6];
+    uint32_t count;
+  } pushConstCulling[2];
 
   float4x4 m_worldViewProj;
   float4x4 m_lightMatrix;    
 
   UniformParams m_uniforms {};
   void* m_uboMappedMem = nullptr;
+  void *m_sboMappedMem = nullptr;
 
   etna::GraphicsPipeline m_basicForwardPipeline {};
   etna::GraphicsPipeline m_shadowPipeline {};
+  std::vector<etna::ComputePipeline> m_computePipeline;
 
   std::shared_ptr<vk_utils::DescriptorMaker> m_pBindings = nullptr;
   
@@ -133,9 +146,11 @@ private:
   void CreateInstance();
   void CreateDevice(uint32_t a_deviceId);
 
+  void MakeCulling(VkCommandBuffer a_cmdBuff, uint32_t a_cameraIndex, const float4x4 &a_wvp, const Camera &cam);
+
   void BuildCommandBufferSimple(VkCommandBuffer a_cmdBuff, VkImage a_targetImage, VkImageView a_targetImageView);
 
-  void DrawSceneCmd(VkCommandBuffer a_cmdBuff, const float4x4& a_wvp);
+  void DrawSceneCmd(VkCommandBuffer a_cmdBuff, const float4x4& a_wvp, uint32_t a_cameraIndex);
 
   void loadShaders();
 
@@ -148,6 +163,7 @@ private:
   void SetupDeviceExtensions();
 
   void AllocateResources();
+  void FillGrid();
   void PreparePipelines();
 
   void DestroyPipelines();

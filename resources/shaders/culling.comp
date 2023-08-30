@@ -1,0 +1,46 @@
+#version 450
+layout (local_size_x = 128) in;
+
+layout (push_constant) uniform params {
+    vec4 bBoxMin;
+    vec4 bBoxMax;
+    vec4 plane[6];
+    uint count;
+} PushConstant;
+
+layout (std430, binding = 0) readonly buffer matrices {
+    mat4 modelMatrix[];
+};
+
+layout (std430, binding = 1) buffer visible {
+    uint visibleInstances[];
+};
+
+layout (std430, binding = 2) buffer info {
+    uint instanceCount;
+};
+
+bool isAABBinFrustum(vec4 bBoxMin, vec4 bBoxMax) {
+    bool inside = true;
+    for (uint i = 0; i < 6; ++i) {
+        float d = max(bBoxMin.x * PushConstant.plane[i].x, bBoxMax.x * PushConstant.plane[i].x)
+            + max(bBoxMin.y * PushConstant.plane[i].y, bBoxMax.y * PushConstant.plane[i].y)
+            + max(bBoxMin.z * PushConstant.plane[i].z, bBoxMax.z * PushConstant.plane[i].z)
+            - PushConstant.plane[i].w;
+        inside = inside && d >= 0.0;
+    }
+    return inside;
+}
+
+void main() {
+    uint idx = gl_GlobalInvocationID.x;
+    if (idx < PushConstant.count) {
+        vec4 bBoxMin = modelMatrix[idx] * PushConstant.bBoxMin;
+        vec4 bBoxMax = modelMatrix[idx] * PushConstant.bBoxMax;
+        bBoxMin /= bBoxMin.w;
+        bBoxMax /= bBoxMax.w;
+        if (isAABBinFrustum(bBoxMin, bBoxMax)) {
+            visibleInstances[atomicAdd(instanceCount, 1u)] = idx;
+        }
+    }
+}
