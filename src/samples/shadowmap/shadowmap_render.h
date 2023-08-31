@@ -146,7 +146,7 @@ private:
   void CreateInstance();
   void CreateDevice(uint32_t a_deviceId);
 
-  void MakeCulling(VkCommandBuffer a_cmdBuff, uint32_t a_cameraIndex, const float4x4 &a_wvp, const Camera &cam);
+  void MakeCulling(VkCommandBuffer a_cmdBuff, uint32_t a_cameraIndex);
 
   void BuildCommandBufferSimple(VkCommandBuffer a_cmdBuff, VkImage a_targetImage, VkImageView a_targetImageView);
 

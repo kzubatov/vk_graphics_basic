@@ -230,12 +230,7 @@ void SimpleShadowmapRender::DrawSceneCmd(VkCommandBuffer a_cmdBuff, const float4
   vkCmdDrawIndexedIndirect(a_cmdBuff, visibleInstancesInfo[a_cameraIndex].get(), 0, 1, 0);
 }
 
-void SimpleShadowmapRender::MakeCulling(VkCommandBuffer a_cmdBuff, uint32_t a_cameraIndex, const float4x4 &a_wvp, const Camera &cam) {
-  // for (uint32_t i = 0; i < 4; ++i) {
-  //   std::cout << a_wvp.get_col(i).x << " " << a_wvp.get_col(i).y << " " << a_wvp.get_col(i).z << " " << a_wvp.get_col(i).w << std::endl; 
-  // }
-  // std::cout << std::endl;
-  
+void SimpleShadowmapRender::MakeCulling(VkCommandBuffer a_cmdBuff, uint32_t a_cameraIndex) {
   std::string shader_name[] = {"simple_culling_shadow", "simple_culling_material"};
   auto simpleCullingInfo = etna::get_shader_program(shader_name[a_cameraIndex]);
   //   typedef struct VkDrawIndexedIndirectCommand {
@@ -299,11 +294,8 @@ void SimpleShadowmapRender::BuildCommandBufferSimple(VkCommandBuffer a_cmdBuff, 
 
   VK_CHECK_RESULT(vkBeginCommandBuffer(a_cmdBuff, &beginInfo));
 
-  float4x4 camM[] = {m_lightMatrix, m_worldViewProj}; 
-  Camera cams[] = {m_cam, m_light.cam};
-
   for (uint32_t i = 0; i < cameraCount; ++i) {
-    MakeCulling(a_cmdBuff, i, camM[i], cams[i]);
+    MakeCulling(a_cmdBuff, i);
   }
 
   //// draw scene to shadowmap
