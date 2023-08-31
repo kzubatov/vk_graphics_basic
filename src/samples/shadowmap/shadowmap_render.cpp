@@ -267,7 +267,7 @@ void SimpleShadowmapRender::MakeCulling(VkCommandBuffer a_cmdBuff, uint32_t a_ca
     .sType = VK_STRUCTURE_TYPE_BUFFER_MEMORY_BARRIER,
     .pNext = nullptr,
     .srcAccessMask = VK_ACCESS_MEMORY_WRITE_BIT,
-    .dstAccessMask = VK_ACCESS_VERTEX_ATTRIBUTE_READ_BIT,
+    .dstAccessMask = VK_ACCESS_INDIRECT_COMMAND_READ_BIT,
     .srcQueueFamilyIndex = m_context->getQueueFamilyIdx(),
     .dstQueueFamilyIndex = m_context->getQueueFamilyIdx(),
     .buffer = visibleInstancesInfo[a_cameraIndex].get(),
