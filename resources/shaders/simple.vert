@@ -3,6 +3,7 @@
 #extension GL_ARB_separate_shader_objects : enable
 #extension GL_GOOGLE_include_directive : require
 
+#include "common.h"
 #include "unpack_attributes.h"
 
 layout(location = 0) in vec4 vPosNorm;
@@ -12,7 +13,6 @@ layout(push_constant) uniform params_t
 {
     mat4 mProjView;
     mat4 mModel;
-    float time;
 } params;
 
 layout (location = 0 ) out VS_OUT
@@ -58,6 +58,10 @@ mat4 scale(vec3 s) {
                 0, 0, 0, 1);
 }
 
+layout(binding = 0, set = 0) uniform AppData
+{
+  UniformParams Params;
+};
 
 out gl_PerVertex { vec4 gl_Position; };
 void main(void)
@@ -66,22 +70,22 @@ void main(void)
     const vec4 wTang = vec4(DecodeNormal(floatBitsToInt(vTexCoordAndTang.z)), 0.0f);
 
     mat4 mModel;
-    float part = fract(params.time);
+    float part = fract(Params.time);
     switch (gl_InstanceIndex) {
     case 0:
-        mModel = transfer(vec3(0, 0, -0.5)) * scale(vec3(1.0 + (1.0 - cos(params.time)) / 4.0, 1, 1.6)) * params.mModel;
+        mModel = transfer(vec3(0, 0, -0.5)) * scale(vec3(1.0 + (1.0 - cos(Params.time)) / 4.0, 1, 1.6)) * params.mModel;
         break;
     case 1:
-        mModel = params.mModel * scale(vec3(1.0, mix(1.0, 1.5, (cos(params.time + M_PI / 2.0) + 1.0) / 2.0), 1.0));
+        mModel = params.mModel * scale(vec3(1.0, mix(1.0, 1.5, (cos(Params.time + M_PI / 2.0) + 1.0) / 2.0), 1.0));
         break;
     case 2:
-        mModel = transfer(vec3((1.0 - cos(params.time)) / 4.0, 0, 0)) * params.mModel;
+        mModel = transfer(vec3((1.0 - cos(Params.time)) / 4.0, 0, 0)) * params.mModel;
         break;
     case 4:
-        mModel = params.mModel * rotateY(mix(0.0, M_PI / 4.0, (-cos(params.time) + 1) / 2.0)) * transfer(vec3(-0.575, 0, 0)); 
+        mModel = params.mModel * rotateY(mix(0.0, M_PI / 4.0, (-cos(Params.time) + 1) / 2.0)) * transfer(vec3(-0.575, 0, 0)); 
         break;
     case 5:
-        mModel = transfer(vec3(sin(4.0 * params.time) * cos(params.time), sin(4.0 * params.time) * sin(params.time) - 0.5, -0.3)) * params.mModel * rotateY(params.time) * scale(vec3(0.25));
+        mModel = transfer(vec3(sin(4.0 * Params.time) * cos(Params.time), sin(4.0 * Params.time) * sin(Params.time) - 0.5, -0.3)) * params.mModel * rotateY(Params.time) * scale(vec3(0.25));
         break;
     default:
         mModel = params.mModel;
