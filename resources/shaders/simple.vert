@@ -21,10 +21,9 @@ layout (location = 0 ) out VS_OUT
     vec3 wNorm;
     vec3 wTangent;
     vec2 texCoord;
-
+    uint instanceID;
 } vOut;
 
-out gl_PerVertex { vec4 gl_Position; };
 void main(void)
 {
     const vec4 wNorm = vec4(DecodeNormal(floatBitsToInt(vPosNorm.w)),         0.0f);
@@ -34,6 +33,5 @@ void main(void)
     vOut.wNorm    = normalize(mat3(transpose(inverse(params.mModel))) * wNorm.xyz);
     vOut.wTangent = normalize(mat3(transpose(inverse(params.mModel))) * wTang.xyz);
     vOut.texCoord = vTexCoordAndTang.xy;
-
-    gl_Position   = params.mProjView * vec4(vOut.wPos, 1.0);
+    vOut.instanceID = gl_InstanceIndex;
 }

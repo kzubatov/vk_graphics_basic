@@ -15,6 +15,12 @@ void SimpleShadowmapRender::InitVulkan(const char** a_instanceExtensions, uint32
     m_instanceExtensions.push_back(a_instanceExtensions[i]);
   }
 
+  #ifndef NDEBUG
+  m_instanceExtensions.push_back("VK_EXT_debug_report");
+  #endif
+
+  m_enabledDeviceFeatures.setGeometryShader(VK_TRUE);
+
   SetupDeviceExtensions();
   
   etna::initialize(etna::InitParams
