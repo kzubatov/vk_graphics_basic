@@ -112,13 +112,13 @@ void SimpleCompute::SetupSimplePipeline()
   // Заполнение буферов
   auto time = std::chrono::high_resolution_clock::now();
 
-  std::mt19937 generator((uint_fast32_t) std::chrono::high_resolution_clock::to_time_t(time));
+  std::srand(std::time(0));
 
   std::vector<float> data (m_length);
   for (float &x : data) 
   {
-    x = std::min(float(generator()), 1000.0f);
-    x = generator() & 1 ? -x : x;
+    x = float(std::rand()) / RAND_MAX * std::rand();
+    x = std::rand() & 1 ? -x : x;
   }
 
   m_pCopyHelper->UpdateBuffer(m_data, 0, data.data(), sizeof(float) * data.size());
@@ -133,6 +133,7 @@ void SimpleCompute::SetupSimplePipeline()
   for (float x : data) {
     mid += x;
   }
+  std::cout << "cpu sum = " << mid << std::endl;
   mid /= m_length;
 
   std::cout << "cpu_mid = " << mid << std::endl;
@@ -267,6 +268,7 @@ void SimpleCompute::Execute()
   for (float x : values) {
     mid += x;
   }
+  std::cout << "gpu sum = " << mid << std::endl;
   mid /= m_length;
 
   std::cout << "gpu_mid = " << mid << std::endl;
