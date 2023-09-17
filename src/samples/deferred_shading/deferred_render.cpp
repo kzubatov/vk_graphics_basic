@@ -31,16 +31,6 @@ void DeferredRender::LoadScene(const char* path, bool transpose_inst_matrices)
 }
 
 void DeferredRender::LoadTextures() {
-  // std::string_view name;
-  // vk::Format format = vk::Format::eR8G8B8A8Srgb;
-  // vk::ImageUsageFlags imageUsage = vk::ImageUsageFlagBits::eColorAttachment | vk::ImageUsageFlagBits::eSampled;
-  // VmaMemoryUsage memoryUsage = VMA_MEMORY_USAGE_GPU_ONLY;
-  // vk::ImageTiling tiling = vk::ImageTiling::eOptimal;
-  // std::size_t layers = 1;
-  // std::size_t mipLevels = 1;
-  // vk::Filter filter = vk::Filter::eNearest;
-  // vk::SamplerAddressMode addressMode = vk::SamplerAddressMode::eClampToEdge;
-  // float minLod = 0.0f;
   etna::TextureLoader::TextureInfo commonInfo = {
     .name = {},
     .format = {},
@@ -89,151 +79,6 @@ void DeferredRender::LoadTextures() {
   commonInfo.format = vk::Format::eR8Unorm;
   flatRoughnessTexture = m_pTextureLoader->load(commonInfo, VK_GRAPHICS_BASIC_ROOT"/resources/textures/rock/roughness.png");
 }
-
-// Texture::Texture(const char *a_name, int a_channelCount, vk::Format a_format) : name(a_name), 
-//   channelCount(a_channelCount), format(a_format) {} 
-
-// Texture::~Texture() {
-//   isLoaded = false;
-//   texture.reset();
-//   copyBuffer = etna::Buffer();
-// }
-
-// void Texture::load(VkCommandBuffer a_cmdBuff, const char *path, etna::GlobalContext *a_context) {
-//   if (!isLoaded) {
-//     isLoaded = true;
-
-//     int texW, texH, texC;
-//     auto pixels = stbi_load(path, &texW, &texH, &texC, channelCount);
-
-//     std::cout << path << std::endl;
-//     ETNA_ASSERT(pixels != nullptr);
-
-//     mipLevels = (uint32_t) floor(log2(std::max(texW, texH))) + 1u;
-
-//     copyBuffer = a_context->createBuffer({
-//       .size = (uint32_t) texW * texH * channelCount,
-//       .bufferUsage = vk::BufferUsageFlagBits::eTransferSrc,
-//       .memoryUsage = VMA_MEMORY_USAGE_CPU_COPY,
-//       .name = "copyBuffer",
-//     });
-
-//     auto copyBufferMap = copyBuffer.map();
-//     memcpy(copyBufferMap, pixels, texW * texH * channelCount);
-//     copyBuffer.unmap();
-//     stbi_image_free(pixels);
-
-//     texture = a_context->createImage({
-//       .extent = { 
-//         .width = static_cast<uint32_t>(texW),
-//         .height = static_cast<uint32_t>(texH),
-//         .depth = 1U,
-//       },
-//       .name = name,
-//       .format = format,
-//       .imageUsage = vk::ImageUsageFlagBits::eTransferDst | vk::ImageUsageFlagBits::eSampled | vk::ImageUsageFlagBits::eTransferSrc,
-//       .memoryUsage = VMA_MEMORY_USAGE_GPU_ONLY,
-//       .tiling = vk::ImageTiling::eOptimal,
-//       .layers = 1,
-//       .mipLevels = mipLevels,
-//     });
-
-//     VkBufferImageCopy info = {
-//       .bufferOffset = 0,
-//       .bufferRowLength = 0,
-//       .bufferImageHeight = 0,
-//       .imageSubresource = {
-//         .aspectMask = VK_IMAGE_ASPECT_COLOR_BIT,
-//         .mipLevel = 0,
-//         .baseArrayLayer = 0,
-//         .layerCount = 1,
-//       },
-//       .imageOffset = { .x = 0, .y = 0, .z = 0 },
-//       .imageExtent = { 
-//         .width = static_cast<uint32_t>(texW),
-//         .height = static_cast<uint32_t>(texH),
-//         .depth = 1U,
-//       },
-//     };
-  
-//     VkImageMemoryBarrier barrier = {
-//       .sType = VK_STRUCTURE_TYPE_IMAGE_MEMORY_BARRIER,
-//       .pNext = nullptr,
-//       .srcAccessMask = 0,
-//       .dstAccessMask = VK_ACCESS_TRANSFER_WRITE_BIT,
-//       .oldLayout = VK_IMAGE_LAYOUT_UNDEFINED,
-//       .newLayout = VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL,
-//       .srcQueueFamilyIndex = a_context->getQueueFamilyIdx(),
-//       .dstQueueFamilyIndex = a_context->getQueueFamilyIdx(),
-//       .image = texture.get(),
-//       .subresourceRange = {
-//         .aspectMask = VK_IMAGE_ASPECT_COLOR_BIT,
-//         .baseMipLevel = 0,
-//         .levelCount = mipLevels,
-//         .baseArrayLayer = 0,
-//         .layerCount = 1,
-//       },
-//     };
-
-//     vkCmdPipelineBarrier(a_cmdBuff, VK_PIPELINE_STAGE_TOP_OF_PIPE_BIT, 
-//       VK_PIPELINE_STAGE_TRANSFER_BIT, 0, 0, nullptr, 0, nullptr, 1, &barrier);
-
-//     vkCmdCopyBufferToImage(a_cmdBuff, copyBuffer.get(), texture.get(), VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL, 1, &info);
-
-//     barrier.subresourceRange.levelCount = 1;
-
-//     int32_t mipWidth = texW;
-//     int32_t mipHeight = texH;
-
-//     for (uint32_t i = 1; i < mipLevels; i++) {
-//       barrier.subresourceRange.baseMipLevel = i - 1;
-//       barrier.oldLayout = VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL;
-//       barrier.newLayout = VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL;
-//       barrier.srcAccessMask = VK_ACCESS_TRANSFER_WRITE_BIT;
-//       barrier.dstAccessMask = VK_ACCESS_TRANSFER_READ_BIT;
-
-//       vkCmdPipelineBarrier(a_cmdBuff, VK_PIPELINE_STAGE_TRANSFER_BIT, 
-//         VK_PIPELINE_STAGE_TRANSFER_BIT, 0, 0, nullptr, 0, nullptr, 1, &barrier);
-
-//       VkImageBlit blit{};
-//       blit.srcOffsets[0] = {0, 0, 0};
-//       blit.srcOffsets[1] = {mipWidth, mipHeight, 1};
-//       blit.srcSubresource.aspectMask = VK_IMAGE_ASPECT_COLOR_BIT;
-//       blit.srcSubresource.mipLevel = i - 1;
-//       blit.srcSubresource.baseArrayLayer = 0;
-//       blit.srcSubresource.layerCount = 1;
-//       blit.dstOffsets[0] = {0, 0, 0};
-//       blit.dstOffsets[1] = { mipWidth > 1 ? mipWidth >> 1 : 1, mipHeight > 1 ? mipHeight >> 1 : 1, 1 };
-//       blit.dstSubresource.aspectMask = VK_IMAGE_ASPECT_COLOR_BIT;
-//       blit.dstSubresource.mipLevel = i;
-//       blit.dstSubresource.baseArrayLayer = 0;
-//       blit.dstSubresource.layerCount = 1;
-
-//       vkCmdBlitImage(a_cmdBuff, texture.get(), VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL,
-//         texture.get(), VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL, 1, &blit, VK_FILTER_LINEAR);
-
-//       barrier.oldLayout = VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL;
-//       barrier.newLayout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL;
-//       barrier.srcAccessMask = VK_ACCESS_TRANSFER_READ_BIT;
-//       barrier.dstAccessMask = VK_ACCESS_SHADER_READ_BIT;
-
-//       vkCmdPipelineBarrier(a_cmdBuff, VK_PIPELINE_STAGE_TRANSFER_BIT, 
-//         VK_PIPELINE_STAGE_FRAGMENT_SHADER_BIT, 0, 0, nullptr, 0, nullptr, 1, &barrier);
-
-//       if (mipWidth > 1) mipWidth >>= 1;
-//       if (mipHeight > 1) mipHeight >>= 1;
-//     }
-
-//     barrier.subresourceRange.baseMipLevel = mipLevels - 1;
-//     barrier.oldLayout = VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL;
-//     barrier.newLayout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL;
-//     barrier.srcAccessMask = VK_ACCESS_TRANSFER_WRITE_BIT;
-//     barrier.dstAccessMask = VK_ACCESS_SHADER_READ_BIT;
-
-//     vkCmdPipelineBarrier(a_cmdBuff, VK_PIPELINE_STAGE_TRANSFER_BIT, 
-//       VK_PIPELINE_STAGE_FRAGMENT_SHADER_BIT, 0, 0, nullptr, 0, nullptr, 1, &barrier);
-//   };
-// }
 
 void DeferredRender::PrepareCullingResources() {
   std::vector<std::vector<float4x4>> matrices(m_pScnMgr->MeshesNum());
@@ -353,7 +198,7 @@ void DeferredRender::AllocateResources()
       m_lights[lightCount++] = {pos, colorAndRad};
     }
   }
-  
+
 
   visibleLights = m_context->createBuffer(etna::Buffer::CreateInfo {
     .size = sizeof(uint32_t) * (lightMax + 1),

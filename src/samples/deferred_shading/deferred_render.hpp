@@ -19,21 +19,6 @@
 
 class IRenderGUI;
 
-// class Texture {
-//   etna::Buffer copyBuffer;
-//   bool isLoaded = false;
-//   const char *name;
-//   etna::Image texture;
-//   vk::Format format;
-//   int channelCount;
-// public:
-//   void load(VkCommandBuffer a_cmdBuff, const char *path, etna::GlobalContext *a_context);
-//   Texture(const char *a_name, int a_channelCount = 4, vk::Format a_format = vk::Format::eR8G8B8A8Srgb);
-//   etna::Image &get() { return texture; }
-//   uint32_t mipLevels;
-//   ~Texture();
-// };
-
 class DeferredRender : public IRender
 {
 public:
@@ -76,7 +61,6 @@ private:
 
   etna::Buffer visibleInstances;
   etna::Image mainViewDepth;
-  // etna::Image shadowMap;
   etna::Image colorMap;
   etna::Image normalMap;
   etna::Sampler defaultSampler;
@@ -126,18 +110,12 @@ private:
   CommonParams *common;
 
   float4x4 m_worldViewProj;
-  // float4x4 m_lightMatrix;    
-
-  // UniformParams m_uniforms {};
-  // void* m_uboMappedMem = nullptr;
 
   etna::GraphicsPipeline m_gBufferPipeline {};
   etna::GraphicsPipeline m_finalPassPipeline {};
-  // etna::GraphicsPipeline m_shadowPipeline {};
+
   etna::ComputePipeline m_cullingComputePipeline {};
   etna::ComputePipeline m_lightCullingComputePipeline {};
-
-  // std::shared_ptr<vk_utils::DescriptorMaker> m_pBindings = nullptr;
   
   VkSurfaceKHR m_surface = VK_NULL_HANDLE;
   VulkanSwapChain m_swapchain;
@@ -156,15 +134,6 @@ private:
   std::shared_ptr<IRenderGUI> m_pGUIRender;
   std::shared_ptr<etna::TextureLoader> m_pTextureLoader;
   
-  // std::shared_ptr<vk_utils::IQuad>               m_pFSQuad;
-  // VkDescriptorSet       m_quadDS; 
-  // VkDescriptorSetLayout m_quadDSLayout = nullptr;
-
-  // struct InputControlMouseEtc
-  // {
-  //   bool drawFSQuad = false;
-  // } m_input;
-
   struct cullingParams {
     float4 plane[6];
   } pushConstCulling;
@@ -185,36 +154,8 @@ private:
   uint32_t lightCount = 0;
   uint32_t curLight = 0;
   uint32_t lightMax = 1 << 16;
-
-  /**
-  // \brief basic parameters that you usually need for shadow mapping
-  // */
-  // struct ShadowMapCam
-  // {
-  //   ShadowMapCam() 
-  //   {  
-  //     cam.pos    = float3(4.0f, 4.0f, 4.0f);
-  //     cam.lookAt = float3(0, 0, 0);
-  //     cam.up     = float3(0, 1, 0);
-  
-  //     radius          = 5.0f;
-  //     lightTargetDist = 20.0f;
-  //     usePerspectiveM = true;
-  //   }
-
-  //   float  radius;           ///!< ignored when usePerspectiveM == true 
-  //   float  lightTargetDist;  ///!< identify depth range
-  //   Camera cam;              ///!< user control for light to later get light worldViewProj matrix
-  //   bool   usePerspectiveM;  ///!< use perspective matrix if true and ortographics otherwise
-  
-  // } m_light;
  
   void DrawFrameSimple(bool draw_gui);
-
-  // void LoadTexture(const char *path, const char *name);
-
-  // void CreateInstance();
-  // void CreateDevice(uint32_t a_deviceId);
 
   void BuildCommandBufferSimple(VkCommandBuffer a_cmdBuff, VkImage a_targetImage, VkImageView a_targetImageView);
 
@@ -228,20 +169,21 @@ private:
 
   void RecreateSwapChain();
 
-  // void UpdateUniformBuffer(float a_time);
-
-
   void SetupDeviceExtensions();
 
   void AllocateResources();
+
   void SetupPipelines();
 
   void DeallocateResources();
 
   void InitPresentStuff();
+
   void ResetPresentStuff();
+
   void SetupGUIElements();
 
   void PrepareCullingResources();
+
   void LoadTextures();
 };
