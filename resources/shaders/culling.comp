@@ -1,0 +1,68 @@
+#version 450
+layout (local_size_x = 128) in;
+
+layout (push_constant) uniform params {
+  vec4 plane[6];
+} PushConstant;
+
+layout (std430, binding = 0) readonly buffer matrices {
+  mat4 modelMatrix[];
+};
+
+struct meshInfo {
+  vec4 center;
+  float r;
+  uint instanceCount;
+};
+
+layout (std430, binding = 1) readonly buffer mesh_info {
+  meshInfo mInfo[];
+};
+
+layout (std430, binding = 2) buffer visible {
+  uint visibleInstances[];
+};
+
+struct drawIndirectInfo {
+  uint indexCount;
+  uint instanceCount;
+  uint firstIndex;
+  int  vertexOffset;
+  uint firstInstance;
+};
+
+layout (std430, binding = 3) buffer info {
+  drawIndirectInfo drawInfo[];
+};
+
+bool isAABBinFrustum(vec3 center, float r) {
+  bool inside = true;
+  for (uint i = 0; i < 6; ++i) {
+    // float d = max(PushConstant.plane[i].x * bBoxMin.x, PushConstant.plane[i].x * bBoxMax.x)
+    //   + max(PushConstant.plane[i].y * bBoxMin.y, PushConstant.plane[i].y * bBoxMax.y)
+    //   + max(PushConstant.plane[i].z * bBoxMin.z, PushConstant.plane[i].z * bBoxMax.z)
+    //   - PushConstant.plane[i].w;
+    float d = dot(center, PushConstant.plane[i].xyz) - PushConstant.plane[i].w + r;
+    inside = inside && d >= 0.0;
+  }
+  return inside;
+}
+
+void main() {
+  uint idx = gl_GlobalInvocationID.x;
+  uint idy = gl_WorkGroupID.y;
+  
+  if (idx < mInfo[idy].instanceCount) {
+    uint offset = 0u;
+    for (uint i = 0; i < idy; ++i) {
+      offset += mInfo[i].instanceCount;
+    }
+
+    vec4 center = modelMatrix[idx + offset] * mInfo[idy].center;
+    float r = length(modelMatrix[idx + offset][0]) * mInfo[idy].r;
+
+    if (isAABBinFrustum(center.xyz, r)) {
+      visibleInstances[atomicAdd(drawInfo[idy].instanceCount, 1u) + offset] = idx;
+    }
+  }
+}

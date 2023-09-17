@@ -14,6 +14,7 @@ struct Camera
   LiteMath::float3 up;
   float  fov;
   float  tdist;
+  float nearPlane = 0.01f;
 
   LiteMath::float3 forward() const { return normalize(lookAt - pos); }
   LiteMath::float3 right()   const { return cross(forward(), up); }
