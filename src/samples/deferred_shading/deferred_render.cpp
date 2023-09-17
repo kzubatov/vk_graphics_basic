@@ -272,7 +272,6 @@ void DeferredRender::AllocateResources()
     .format = vk::Format::eD32Sfloat,
     .imageUsage = vk::ImageUsageFlagBits::eDepthStencilAttachment | vk::ImageUsageFlagBits::eSampled
   });
-  std::cout << "here" << std::endl;
 
   colorMap = m_context->createImage(etna::Image::CreateInfo {
     .extent = vk::Extent3D{m_width, m_height, 1},
@@ -322,13 +321,46 @@ void DeferredRender::AllocateResources()
     .name = "visibleInstances",
   }); 
 
-  // lightBuffer = m_context->createBuffer(etna::Buffer::CreateInfo {
-  //   .size = sizeof(lightParams) * lightMax,
-  //   .bufferUsage = vk::BufferUsageFlagBits::eStorageBuffer,
-  //   .memoryUsage = VMA_MEMORY_USAGE_CPU_ONLY,
-  //   .name = "lightBuffer", 
-  // });
-  // m_lights = (lightParams *) lightBuffer.map();
+  lightBuffer = m_context->createBuffer(etna::Buffer::CreateInfo {
+    .size = sizeof(lightParams) * lightMax,
+    .bufferUsage = vk::BufferUsageFlagBits::eStorageBuffer,
+    .memoryUsage = VMA_MEMORY_USAGE_CPU_ONLY,
+    .name = "lightBuffer", 
+  });
+  m_lights = (lightParams *) lightBuffer.map();
+
+  uniformBuffer = m_context->createBuffer(etna::Buffer::CreateInfo {
+    .size = sizeof(CommonParams),
+    .bufferUsage = vk::BufferUsageFlagBits::eStorageBuffer,
+    .memoryUsage = VMA_MEMORY_USAGE_CPU_ONLY,
+    .name = "uniformBuffer",
+  });
+  common = (CommonParams *) uniformBuffer.map();
+  common->width = m_width;
+  common->lightCount = 0;
+
+  const uint32_t n = 100;
+  const float dist = 200.0f;
+  const float mDistHalf = -dist / 2.0f;
+  const float offset = dist / (n - 1u);
+  std::srand(std::time(0));
+  for (uint32_t i = 0; i < n; ++i) {
+    for (uint32_t j = 0; j < n; ++j) {
+      float4 pos {mDistHalf + i * offset, 3, mDistHalf + j * offset, 1};
+      float4 colorAndRad {(float) std::rand() / RAND_MAX, (float) std::rand() / RAND_MAX,
+        (float) std::rand() / RAND_MAX, LiteMath::mix(4.0f, 8.0f, (float) std::rand() / RAND_MAX)};
+      colorAndRad += float4(0.1f,0.1f,0.1f,0.0f);
+      m_lights[lightCount++] = {pos, colorAndRad};
+    }
+  }
+  
+
+  visibleLights = m_context->createBuffer(etna::Buffer::CreateInfo {
+    .size = sizeof(uint32_t) * (lightMax + 1),
+    .bufferUsage = vk::BufferUsageFlagBits::eStorageBuffer,
+    .memoryUsage = VMA_MEMORY_USAGE_GPU_ONLY,
+    .name = "visibleLights", 
+  });
 }
 
 void DeferredRender::DeallocateResources()
@@ -357,8 +389,11 @@ void DeferredRender::DeallocateResources()
   flatNormalTexture.image.reset();
   flatRoughnessTexture.image.reset();
 
-  // lightBuffer.unmap();
-  // lightBuffer = etna::Buffer();
+  lightBuffer.unmap();
+  lightBuffer = etna::Buffer();
+  uniformBuffer.unmap();
+  uniformBuffer = etna::Buffer();
+  visibleLights = etna::Buffer();
 }
 
 
@@ -369,6 +404,7 @@ void DeferredRender::loadShaders()
   etna::create_program("culling", {VK_GRAPHICS_BASIC_ROOT"/resources/shaders/culling.comp.spv"});
   etna::create_program("gBuffer", {VK_GRAPHICS_BASIC_ROOT"/resources/shaders/simple.vert.spv", VK_GRAPHICS_BASIC_ROOT"/resources/shaders/gbuffer.frag.spv"});
   etna::create_program("finalPass", {VK_GRAPHICS_BASIC_ROOT"/resources/shaders/quad3_vert.vert.spv", VK_GRAPHICS_BASIC_ROOT"/resources/shaders/deferred_shading.frag.spv"});
+  etna::create_program("lightCulling", {VK_GRAPHICS_BASIC_ROOT"/resources/shaders/light_culling.comp.spv"});
 }
 
 void DeferredRender::SetupPipelines()
@@ -417,12 +453,13 @@ void DeferredRender::SetupPipelines()
   });
 
   m_cullingComputePipeline = pipelineManager.createComputePipeline("culling", {});
+  m_lightCullingComputePipeline = pipelineManager.createComputePipeline("lightCulling", {});
 }
 
 /// COMMAND BUFFER FILLING
 
 void DeferredRender::CullSceneCmd(VkCommandBuffer a_cmdBuff) {
-  auto simpleCullingInfo = etna::get_shader_program("culling");
+  auto cullingInfo = etna::get_shader_program("culling");
 
   VkDeviceSize offset = 0;
   for (uint32_t i = 0; i < m_pScnMgr->MeshesNum(); ++i) {
@@ -437,7 +474,7 @@ void DeferredRender::CullSceneCmd(VkCommandBuffer a_cmdBuff) {
     offset += sizeof(VkDrawIndexedIndirectCommand);
   }
 
-  auto set = etna::create_descriptor_set(simpleCullingInfo.getDescriptorLayoutId(0), a_cmdBuff, 
+  auto set = etna::create_descriptor_set(cullingInfo.getDescriptorLayoutId(0), a_cmdBuff, 
   {
     etna::Binding {0, instanceMatrices.genBinding()},
     etna::Binding {1, meshInfo.genBinding()},
@@ -471,6 +508,39 @@ void DeferredRender::CullSceneCmd(VkCommandBuffer a_cmdBuff) {
 
   vkCmdPipelineBarrier(a_cmdBuff, VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT, VK_PIPELINE_STAGE_DRAW_INDIRECT_BIT, 
     0, 0, nullptr, 1, &barrier, 0, nullptr);
+
+
+  auto lightCullingInfo = etna::get_shader_program("lightCulling");
+
+  vkCmdFillBuffer(a_cmdBuff, visibleLights.get(), 0, sizeof(uint32_t), 0);
+
+  auto set2 = etna::create_descriptor_set(lightCullingInfo.getDescriptorLayoutId(0), a_cmdBuff, 
+  {
+    etna::Binding {0, lightBuffer.genBinding()},
+    etna::Binding {1, visibleLights.genBinding()},
+  });
+
+  vkSet = set2.getVkSet();
+
+  vkCmdBindPipeline(a_cmdBuff, VK_PIPELINE_BIND_POINT_COMPUTE, m_lightCullingComputePipeline.getVkPipeline());
+  
+  vkCmdBindDescriptorSets(a_cmdBuff, VK_PIPELINE_BIND_POINT_COMPUTE,
+    m_lightCullingComputePipeline.getVkPipelineLayout(), 0, 1, &vkSet, 0, VK_NULL_HANDLE);
+
+  vkCmdPushConstants(a_cmdBuff, m_lightCullingComputePipeline.getVkPipelineLayout(), 
+    VK_SHADER_STAGE_COMPUTE_BIT, 0, sizeof(pushConstCulling), &pushConstCulling);
+  
+  std::vector<uint32_t> bytes = {lightCount, 0, 0, 0};
+  vkCmdPushConstants(a_cmdBuff, m_lightCullingComputePipeline.getVkPipelineLayout(), 
+    VK_SHADER_STAGE_COMPUTE_BIT, sizeof(pushConstCulling), sizeof(bytes[0]) * bytes.size(), bytes.data());
+
+  barrier.dstAccessMask = VK_ACCESS_MEMORY_READ_BIT;
+  barrier.buffer = visibleLights.get();
+
+  vkCmdPipelineBarrier(a_cmdBuff, VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT, VK_PIPELINE_STAGE_2_FRAGMENT_SHADER_BIT, 
+    0, 0, nullptr, 1, &barrier, 0, nullptr);
+
+  vkCmdDispatch(a_cmdBuff, lightCount / 128u + 1u, 1u, 1u);
 }
 
 void DeferredRender::DrawSceneCmd(VkCommandBuffer a_cmdBuff, const float4x4& a_wvp)
@@ -485,7 +555,6 @@ void DeferredRender::DrawSceneCmd(VkCommandBuffer a_cmdBuff, const float4x4& a_w
 
   VkDeviceSize offset = 0u;
   pushConst.projView = a_wvp;
-  pushConst.camPos = m_cam.pos;
   for (uint32_t i = 0; i < m_pScnMgr->MeshesNum(); ++i)
   {
     pushConst.id = i;
@@ -572,6 +641,9 @@ void DeferredRender::BuildCommandBufferSimple(VkCommandBuffer a_cmdBuff, VkImage
       etna::Binding {0, colorMap.genBinding(defaultSampler.get(), vk::ImageLayout::eShaderReadOnlyOptimal)},
       etna::Binding {1, normalMap.genBinding(defaultSampler.get(), vk::ImageLayout::eShaderReadOnlyOptimal)},
       etna::Binding {2, mainViewDepth.genBinding(defaultSampler.get(), vk::ImageLayout::eShaderReadOnlyOptimal)},
+      etna::Binding {3, lightBuffer.genBinding()},
+      etna::Binding {4, visibleLights.genBinding()},
+      etna::Binding {5, uniformBuffer.genBinding()},
     });
 
     VkDescriptorSet vkSet = set.getVkSet();

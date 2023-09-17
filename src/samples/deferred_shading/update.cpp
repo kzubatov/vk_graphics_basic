@@ -21,7 +21,7 @@ void DeferredRender::UpdateView()
 
   pushConst2M1V.projMatInv = LiteMath::inverse4x4(mProjFix * mProj);
   pushConst2M1V.viewMatInv = LiteMath::inverse4x4(mLookAt);
-  pushConst2M1V.camPos = LiteMath::to_float4(m_cam.pos, 1.0f);
+  common->camPos = LiteMath::to_float4(m_cam.pos, 1.0f);
   
   m_worldViewProj = mWorldViewProj;
 
@@ -75,15 +75,18 @@ void DeferredRender::ProcessInput(const AppInput &input)
   //
   if (input.keyReleased[GLFW_KEY_N] && lightCount < lightMax) {
     // add light source
-    m_lights[++lightCount] = {float4(0,4,0,1), float4(1,1,1,1)};
-    if (lightCount == 1) {
-      curLight = 0;
-    }
+    m_lights[lightCount++] = {float4(0,4,0,1), float4(1,1,1,1)};
   }
 
-  if (input.keyReleased[GLFW_KEY_L] && lightCount) {
+  if (input.keyReleased[GLFW_KEY_K] && lightCount) {
     curLight = (curLight + 1) % lightCount;
   }
+
+  if (input.keyReleased[GLFW_KEY_J] && lightCount) {
+    curLight = curLight ? curLight - 1 : lightCount - 1;
+  }
+
+  common->lightCount = lightCount;
 
   // recreate pipeline to reload shaders
   if (input.keyPressed[GLFW_KEY_B])

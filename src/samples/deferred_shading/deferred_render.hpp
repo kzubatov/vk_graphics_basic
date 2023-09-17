@@ -94,6 +94,7 @@ private:
   etna::Texture flatNormalTexture;
   etna::Texture flatRoughnessTexture;
   
+  
   VkCommandPool    m_commandPool    = VK_NULL_HANDLE;
 
   struct
@@ -110,9 +111,19 @@ private:
   struct
   {
     float4x4 projView;
-    float3 camPos;
     uint32_t id;
   } pushConst;
+
+  struct CommonParams
+  {
+    float4 camPos;
+    uint32_t lightCount;
+    uint32_t width;
+    uint32_t bytes[2];
+  };
+
+  etna::Buffer uniformBuffer;
+  CommonParams *common;
 
   float4x4 m_worldViewProj;
   // float4x4 m_lightMatrix;    
@@ -124,6 +135,7 @@ private:
   etna::GraphicsPipeline m_finalPassPipeline {};
   // etna::GraphicsPipeline m_shadowPipeline {};
   etna::ComputePipeline m_cullingComputePipeline {};
+  etna::ComputePipeline m_lightCullingComputePipeline {};
 
   // std::shared_ptr<vk_utils::DescriptorMaker> m_pBindings = nullptr;
   
@@ -160,7 +172,6 @@ private:
   struct {
     float4x4 projMatInv;
     float4x4 viewMatInv;
-    float4 camPos;
   } pushConst2M1V;
 
   struct lightParams {
@@ -169,11 +180,11 @@ private:
   };
 
   etna::Buffer lightBuffer;
+  etna::Buffer visibleLights;
   lightParams *m_lights;
   uint32_t lightCount = 0;
-  uint32_t curLight = -1;
+  uint32_t curLight = 0;
   uint32_t lightMax = 1 << 16;
-
 
   /**
   // \brief basic parameters that you usually need for shadow mapping

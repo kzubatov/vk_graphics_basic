@@ -26,7 +26,7 @@ int main() {
   constexpr int WIDTH = 1024;
   constexpr int HEIGHT = 1024;
 
-  std::shared_ptr<IRender> app = std::make_unique<DeferredRender>(WIDTH, HEIGHT);
+  std::shared_ptr<IRender> app = std::make_shared<DeferredRender>(WIDTH, HEIGHT);
   if (app == nullptr) {
     std::cout << "Can't create render of specified type" << std::endl;
     return 1;
@@ -34,8 +34,7 @@ int main() {
 
   auto* window = initWindow(WIDTH, HEIGHT);
   initVulkanGLFW(app, window);
-
-  mainLoop(app, window, false);
+  mainLoop(app, window, true);
 
   app = {};
 

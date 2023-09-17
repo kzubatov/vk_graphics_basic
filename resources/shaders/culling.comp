@@ -35,13 +35,9 @@ layout (std430, binding = 3) buffer info {
   drawIndirectInfo drawInfo[];
 };
 
-bool isAABBinFrustum(vec3 center, float r) {
+bool isSphereinFrustum(vec3 center, float r) {
   bool inside = true;
   for (uint i = 0; i < 6; ++i) {
-    // float d = max(PushConstant.plane[i].x * bBoxMin.x, PushConstant.plane[i].x * bBoxMax.x)
-    //   + max(PushConstant.plane[i].y * bBoxMin.y, PushConstant.plane[i].y * bBoxMax.y)
-    //   + max(PushConstant.plane[i].z * bBoxMin.z, PushConstant.plane[i].z * bBoxMax.z)
-    //   - PushConstant.plane[i].w;
     float d = dot(center, PushConstant.plane[i].xyz) - PushConstant.plane[i].w + r;
     inside = inside && d >= 0.0;
   }
@@ -61,7 +57,7 @@ void main() {
     vec4 center = modelMatrix[idx + offset] * mInfo[idy].center;
     float r = length(modelMatrix[idx + offset][0]) * mInfo[idy].r;
 
-    if (isAABBinFrustum(center.xyz, r)) {
+    if (isSphereinFrustum(center.xyz, r)) {
       visibleInstances[atomicAdd(drawInfo[idy].instanceCount, 1u) + offset] = idx;
     }
   }

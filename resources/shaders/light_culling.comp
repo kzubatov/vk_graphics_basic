@@ -1,0 +1,40 @@
+#version 450
+layout (local_size_x = 128) in;
+
+layout (push_constant) uniform params {
+  vec4 plane[6];
+  uint lightCount;
+} PushConstant;
+
+struct LightInfo {
+  vec4 position;
+  vec4 colorAndRadius;
+};
+
+layout (std430, binding = 0) readonly buffer lights {
+  LightInfo info[];
+};
+
+layout (std430, binding = 1) buffer visible_lights {
+  uint count;
+  uint id[];
+};
+
+bool isSphereinFrustum(vec3 center, float r) {
+  bool inside = true;
+  for (uint i = 0; i < 6; ++i) {
+    float d = dot(center, PushConstant.plane[i].xyz) - PushConstant.plane[i].w + r;
+    inside = inside && d >= 0.0;
+  }
+  return inside;
+}
+
+void main() {
+  uint idx = gl_GlobalInvocationID.x;
+  
+  if (idx < PushConstant.lightCount) {
+    if (isSphereinFrustum(info[idx].position.xyz, info[idx].colorAndRadius.w)) {
+      id[atomicAdd(count, 1u)] = idx;
+    }
+  }
+}

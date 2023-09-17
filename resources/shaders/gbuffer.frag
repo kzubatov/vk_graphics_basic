@@ -3,7 +3,6 @@
 layout(std430, push_constant) uniform params_t
 {
   mat4 mProjView;
-  vec3 cameraPos;
   uint meshID;
 } params;
 
