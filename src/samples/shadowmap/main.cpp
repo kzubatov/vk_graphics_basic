@@ -39,7 +39,6 @@ int main()
   auto* window = initWindow(WIDTH, HEIGHT);
 
   initVulkanGLFW(app, window);
-
   app->LoadScene(VK_GRAPHICS_BASIC_ROOT "/resources/scenes/043_cornell_normals/statex_00001.xml", false);
 
   mainLoop(app, window, true);

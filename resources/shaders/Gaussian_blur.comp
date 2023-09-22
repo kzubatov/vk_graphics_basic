@@ -1,0 +1,36 @@
+#version 450
+
+#define WORK_GROUP_AXIS_SIZE 128
+const float SIGMA = 2.0;
+
+layout(local_size_x = WORK_GROUP_AXIS_SIZE, local_size_y = WORK_GROUP_AXIS_SIZE) in;
+
+layout(push_constant) uniform params {
+  uvec2 resolution;
+} PushConstant;
+
+layout(binding = 0, rgba8) uniform image2D srcImage;
+layout(binding = 1, rgba8) uniform image2D dstImage;
+
+const int R = int(ceil(3.0 * SIGMA));
+const int TILE_AXIS_SIZE = WORK_GROUP_AXIS_SIZE + 2 * R;
+shared vec3 tile[TILE_AXIS_SIZE][TILE_AXIS_SIZE];
+
+void main() {
+  if (gl_GlobalInvocationID.x < PushConstant.resolution.x
+      && gl_GlobalInvocationID.y < PushConstant.resolution.y) {
+    const int T = int(ceil(TILE_AXIS_SIZE / WORK_GROUP_AXIS_SIZE));
+    int idy = int(gl_GlobalInvocationID.y) - R;
+    
+    for (int i = 0; i < T && idy < TILE_AXIS_SIZE; ++i) {
+      int idx = int(gl_LocalInvocationID.x) - R;
+      for (int j = 0; j < T && idx < TILE_AXIS_SIZE; ++j) {
+        tile[idy + R][idx + R] = imageLoad(srcImage, ivec2(idx, idy)).rgb;
+        idx += WORK_GROUP_AXIS_SIZE;
+      }
+      idy += WORK_GROUP_AXIS_SIZE;
+    }
+
+    imageStore(dstImage, ivec2(gl_GlobalInvocationID.yx), vec4(tile[int(gl_GlobalInvocationID.y) + R][int(gl_GlobalInvocationID.x) + R], 1.0));
+  }
+}

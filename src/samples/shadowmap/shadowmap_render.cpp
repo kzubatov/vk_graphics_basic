@@ -15,6 +15,7 @@
 
 void SimpleShadowmapRender::AllocateResources()
 {
+  std::cout << "1" << std::endl;
   mainViewDepth = m_context->createImage(etna::Image::CreateInfo
   {
     .extent = vk::Extent3D{m_width, m_height, 1},
@@ -22,7 +23,8 @@ void SimpleShadowmapRender::AllocateResources()
     .format = vk::Format::eD32Sfloat,
     .imageUsage = vk::ImageUsageFlagBits::eDepthStencilAttachment
   });
-
+  std::cout << "2" << std::endl;
+  
   shadowMap = m_context->createImage(etna::Image::CreateInfo
   {
     .extent = vk::Extent3D{2048, 2048, 1},
@@ -32,6 +34,7 @@ void SimpleShadowmapRender::AllocateResources()
   });
 
   defaultSampler = etna::Sampler(etna::Sampler::CreateInfo{.name = "default_sampler"});
+
   constants = m_context->createBuffer(etna::Buffer::CreateInfo
   {
     .size = sizeof(UniformParams),
@@ -39,8 +42,24 @@ void SimpleShadowmapRender::AllocateResources()
     .memoryUsage = VMA_MEMORY_USAGE_CPU_ONLY,
     .name = "constants"
   });
-
   m_uboMappedMem = constants.map();
+
+
+  blurPass1 = m_context->createImage(etna::Image::CreateInfo
+  {
+    .extent = vk::Extent3D{m_width, m_height, 1},
+    .name = "blurPass1",
+    .format = vk::Format::eR8G8B8A8Unorm,
+    .imageUsage = vk::ImageUsageFlagBits::eColorAttachment | vk::ImageUsageFlagBits::eSampled
+  });
+
+  blurPass2 = m_context->createImage(etna::Image::CreateInfo
+  {
+    .extent = vk::Extent3D{m_height, m_width, 1},
+    .name = "blurPass2",
+    .format = vk::Format::eR8G8B8A8Unorm,
+    .imageUsage = vk::ImageUsageFlagBits::eColorAttachment | vk::ImageUsageFlagBits::eSampled
+  });
 }
 
 void SimpleShadowmapRender::LoadScene(const char* path, bool transpose_inst_matrices)
@@ -99,6 +118,7 @@ void SimpleShadowmapRender::loadShaders()
   etna::create_program("simple_material",
     {VK_GRAPHICS_BASIC_ROOT"/resources/shaders/simple_shadow.frag.spv", VK_GRAPHICS_BASIC_ROOT"/resources/shaders/simple.vert.spv"});
   etna::create_program("simple_shadow", {VK_GRAPHICS_BASIC_ROOT"/resources/shaders/simple.vert.spv"});
+  etna::create_program("GaussianBlur", {VK_GRAPHICS_BASIC_ROOT"/resources/shaders/Gaussian_blur.comp.spv"});
 }
 
 void SimpleShadowmapRender::SetupSimplePipeline()
@@ -140,6 +160,7 @@ void SimpleShadowmapRender::SetupSimplePipeline()
           .depthAttachmentFormat = vk::Format::eD16Unorm
         }
     });
+  m_blurPipeline = pipelineManager.createComputePipeline("GaussianBlur", {});
 }
 
 void SimpleShadowmapRender::DestroyPipelines()
@@ -173,6 +194,14 @@ void SimpleShadowmapRender::DrawSceneCmd(VkCommandBuffer a_cmdBuff, const float4
     auto mesh_info = m_pScnMgr->GetMeshInfo(inst.mesh_id);
     vkCmdDrawIndexed(a_cmdBuff, mesh_info.m_indNum, 1, mesh_info.m_indexOffset, mesh_info.m_vertexOffset, 0);
   }
+}
+
+void SimpleShadowmapRender::PostProcessingCmd(VkCommandBuffer a_cmdBuff, uint32_t a_width, uint32_t a_height) {
+  const uint32_t data[] = {a_width, a_height};
+
+  vkCmdPushConstants(a_cmdBuff, m_blurPipeline.getVkPipelineLayout(),
+    VK_SHADER_STAGE_COMPUTE_BIT, 0, sizeof(data), data);
+  vkCmdDispatch(a_cmdBuff, a_width / 128 + (bool) (a_width % 128), a_height / 128 + (bool) (a_height % 128), 1); 
 }
 
 void SimpleShadowmapRender::BuildCommandBufferSimple(VkCommandBuffer a_cmdBuff, VkImage a_targetImage, VkImageView a_targetImageView)
@@ -215,6 +244,57 @@ void SimpleShadowmapRender::BuildCommandBufferSimple(VkCommandBuffer a_cmdBuff, 
 
     DrawSceneCmd(a_cmdBuff, m_worldViewProj);
   }
+
+  // Post processing
+  // {
+  //   auto GaussianBlurInfo = etna::get_shader_program("GaussianBlur");
+
+  //   auto set = etna::create_descriptor_set(GaussianBlurInfo.getDescriptorLayoutId(0), a_cmdBuff,
+  //   {
+  //     etna::Binding {0, blurPass1.genBinding(defaultSampler.get(), vk::ImageLayout::eShaderReadOnlyOptimal)},
+  //     etna::Binding {1, blurPass2.genBinding(defaultSampler.get(), vk::ImageLayout::eColorAttachmentOptimal)},
+  //   });
+
+  //   VkDescriptorSet vkSet = set.getVkSet();
+
+  //   vkCmdBindPipeline(a_cmdBuff, VK_PIPELINE_BIND_POINT_COMPUTE, m_blurPipeline.getVkPipeline());
+  //   vkCmdBindDescriptorSets(a_cmdBuff, VK_PIPELINE_BIND_POINT_COMPUTE,
+  //     m_blurPipeline.getVkPipelineLayout(), 0, 1, &vkSet, 0, VK_NULL_HANDLE);
+
+  //   PostProcessingCmd(a_cmdBuff, m_width, m_height);
+  // }
+
+  // {
+  //   auto GaussianBlurInfo = etna::get_shader_program("GaussianBlur");
+
+  //   auto set = etna::create_descriptor_set(GaussianBlurInfo.getDescriptorLayoutId(0), a_cmdBuff,
+  //   {
+  //     etna::Binding {0, blurPass2.genBinding(defaultSampler.get(), vk::ImageLayout::eShaderReadOnlyOptimal)},
+  //     etna::Binding {1, blurPass1.genBinding(defaultSampler.get(), vk::ImageLayout::eColorAttachmentOptimal)},
+  //   });
+
+  //   VkDescriptorSet vkSet = set.getVkSet();
+
+  //   vkCmdBindPipeline(a_cmdBuff, VK_PIPELINE_BIND_POINT_COMPUTE, m_blurPipeline.getVkPipeline());
+  //   vkCmdBindDescriptorSets(a_cmdBuff, VK_PIPELINE_BIND_POINT_COMPUTE,
+  //     m_blurPipeline.getVkPipelineLayout(), 0, 1, &vkSet, 0, VK_NULL_HANDLE);
+
+  //   PostProcessingCmd(a_cmdBuff, m_width, m_height);
+  // }
+
+  // vk::ImageCopy copy;
+  // copy.extent.width = m_width;
+  // copy.extent.height = m_height;
+  // copy.extent.depth = 1;
+  // copy.dstSubresource = copy.srcSubresource = {
+  //   .aspectMask = vk::ImageAspectFlagBits::eColor,
+  //   .mipLevel = 0,
+  //   .baseArrayLayer = 0,
+  //   .layerCount = 1,
+  // };
+
+  // vkCmdCopyImage(a_cmdBuff, blurPass1.get(), VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL,
+  //   a_targetImage, VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL, 1, (VkImageCopy *) &copy);
 
   if(m_input.drawFSQuad)
   {

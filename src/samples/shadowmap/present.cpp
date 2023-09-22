@@ -70,7 +70,6 @@ void SimpleShadowmapRender::InitPresentation(VkSurfaceKHR &a_surface, bool)
     m_context->getPhysicalDevice(), m_context->getDevice(), m_surface,
     m_width, m_height, m_framesInFlight, m_vsync);
   m_presentationResources.currentFrame = 0;
-
   AllocateResources();
   InitPresentStuff();
 }
