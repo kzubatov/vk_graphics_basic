@@ -56,15 +56,15 @@ void main() {
     roughness = texture(teapotRoughness, tex).r;
     break;    
   case 2:
-    c = texture(flatAlbedo, 8 * tex).rgb;
-    n = texture(flatNormal, 8 * tex).rgb * 2.0 - 1.0;
+    c = texture(flatAlbedo, 16 * tex).rgb;
+    n = texture(flatNormal, 16 * tex).rgb * 2.0 - 1.0;
     metalness = 0.0;
-    roughness = texture(flatRoughness, 8 * tex).r;
+    roughness = texture(flatRoughness, 16 * tex).r;
     break;
   }
 
   n = normalize(n);
 
   color = vec4(c, metalness);
-  normal = vec4(n.r * wT + n.g * wB + n.b * wN, roughness);
+  normal = vec4(n.r * wT - n.g * wB + n.b * wN, roughness);
 }
