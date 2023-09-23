@@ -63,8 +63,8 @@ float CookTorrance(float nl, float nv, float nh, float vh, float roughness) {
 
 void main() {
   vec4 tmp = texture(colorMap, texCoord).rgba;
-  vec3 color = tmp.rgb;
-  float metalness = pow(tmp.a, 1.0 / 2.2);
+  vec3 color = pow(tmp.rgb, vec3(2.2));
+  float metalness = tmp.a;
 
   tmp = texture(normalMap, texCoord).rgba;
   vec3 normal = tmp.rgb;

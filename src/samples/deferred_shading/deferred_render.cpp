@@ -26,7 +26,7 @@ void DeferredRender::LoadScene(const char* path, bool transpose_inst_matrices)
   m_cam.pos = float3(loadedCam.pos);
   m_cam.up  = float3(loadedCam.up);
   m_cam.lookAt = float3(loadedCam.lookAt);
-  m_cam.tdist  = loadedCam.farPlane;
+  m_cam.tdist  = 1000.f;
   m_cam.nearPlane = loadedCam.nearPlane;
 }
 
@@ -41,11 +41,10 @@ void DeferredRender::LoadTextures() {
   };
 
   commonInfo.name = "bunnyAlbedo";
-  commonInfo.format = vk::Format::eR8G8B8A8Srgb;
+  commonInfo.format = vk::Format::eR8G8B8A8Unorm;
   bunnyAlbedoTexture = m_pTextureLoader->load(commonInfo, VK_GRAPHICS_BASIC_ROOT"/resources/textures/plastic/alb6.png");
   
   commonInfo.name = "bunnyNormal";
-  commonInfo.format = vk::Format::eR8G8B8A8Unorm;
   bunnyNormalTexture = m_pTextureLoader->load(commonInfo, VK_GRAPHICS_BASIC_ROOT"/resources/textures/plastic/normal.png");
     
   commonInfo.name = "bunnyRoughness";
@@ -53,11 +52,10 @@ void DeferredRender::LoadTextures() {
   bunnyRoughnessTexture = m_pTextureLoader->load(commonInfo, VK_GRAPHICS_BASIC_ROOT"/resources/textures/plastic/roughness.png");
   
   commonInfo.name = "teapotAlbedo";
-  commonInfo.format = vk::Format::eR8G8B8A8Srgb;
+  commonInfo.format = vk::Format::eR8G8B8A8Unorm;
   teapotAlbedoTexture = m_pTextureLoader->load(commonInfo, VK_GRAPHICS_BASIC_ROOT"/resources/textures/rusted-steel/albedo.png");
   
   commonInfo.name = "teapotNormal";
-  commonInfo.format = vk::Format::eR8G8B8A8Unorm;
   teapotNormalTexture = m_pTextureLoader->load(commonInfo, VK_GRAPHICS_BASIC_ROOT"/resources/textures/rusted-steel/normal.png");
   
   commonInfo.name = "teapotMetalness";
@@ -68,11 +66,10 @@ void DeferredRender::LoadTextures() {
   teapotRoughnessTexture = m_pTextureLoader->load(commonInfo, VK_GRAPHICS_BASIC_ROOT"/resources/textures/rusted-steel/roughness.png");
   
   commonInfo.name = "flatAlbedo";
-  commonInfo.format = vk::Format::eR8G8B8A8Srgb;
+  commonInfo.format = vk::Format::eR8G8B8A8Unorm;
   flatAlbedoTexture = m_pTextureLoader->load(commonInfo, VK_GRAPHICS_BASIC_ROOT"/resources/textures/rock/albedo.png");
   
   commonInfo.name = "flatNormal";
-  commonInfo.format = vk::Format::eR8G8B8A8Unorm;
   flatNormalTexture = m_pTextureLoader->load(commonInfo, VK_GRAPHICS_BASIC_ROOT"/resources/textures/rock/normal.png");
   
   commonInfo.name = "flatRoughness";
@@ -121,7 +118,7 @@ void DeferredRender::AllocateResources()
   colorMap = m_context->createImage(etna::Image::CreateInfo {
     .extent = vk::Extent3D{m_width, m_height, 1},
     .name = "colorMap",
-    .format = vk::Format::eR8G8B8A8Srgb,
+    .format = vk::Format::eR8G8B8A8Unorm,
     .imageUsage = vk::ImageUsageFlagBits::eColorAttachment | vk::ImageUsageFlagBits::eSampled,
   });
 
@@ -199,7 +196,7 @@ void DeferredRender::AllocateResources()
     }
   }
 
-  m_lights[lightCount++] = {float4(0,8,0,0), float4(1,1,1,100)};
+  m_lights[lightCount++] = {float4(0,100,0,0), float4(1,1,1,200)};
 
   visibleLights = m_context->createBuffer(etna::Buffer::CreateInfo {
     .size = sizeof(uint32_t) * (lightMax + 1),
@@ -280,7 +277,7 @@ void DeferredRender::SetupPipelines()
         },
       .fragmentShaderOutput =
         {
-          .colorAttachmentFormats = {vk::Format::eR8G8B8A8Srgb, vk::Format::eR16G16B16A16Snorm},
+          .colorAttachmentFormats = {vk::Format::eR8G8B8A8Unorm, vk::Format::eR16G16B16A16Snorm},
           .depthAttachmentFormat = vk::Format::eD32Sfloat,
         },
     });

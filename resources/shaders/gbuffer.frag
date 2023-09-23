@@ -63,8 +63,6 @@ void main() {
     break;
   }
 
-  n = normalize(n);
-
   color = vec4(c, metalness);
-  normal = vec4(n.r * wT - n.g * wB + n.b * wN, roughness);
+  normal = vec4(normalize(n.r * wT - n.g * wB + n.b * wN), roughness);
 }
