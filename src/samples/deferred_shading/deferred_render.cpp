@@ -137,7 +137,7 @@ void DeferredRender::AllocateResources()
   instanceMatrices = m_context->createBuffer(etna::Buffer::CreateInfo {
     .size = sizeof(LiteMath::float4x4) * m_pScnMgr->InstancesNum(),
     .bufferUsage = vk::BufferUsageFlagBits::eStorageBuffer,
-    .memoryUsage = VMA_MEMORY_USAGE_CPU_COPY,
+    .memoryUsage = VMA_MEMORY_USAGE_CPU_ONLY,
     .name = "instanceMatrices",
   });
   m_instanceMatricesMap = instanceMatrices.map();
@@ -145,7 +145,7 @@ void DeferredRender::AllocateResources()
   meshInfo = m_context->createBuffer(etna::Buffer::CreateInfo {
     .size = sizeof(mInfo) * m_pScnMgr->MeshesNum(),
     .bufferUsage = vk::BufferUsageFlagBits::eStorageBuffer,
-    .memoryUsage = VMA_MEMORY_USAGE_CPU_COPY,
+    .memoryUsage = VMA_MEMORY_USAGE_CPU_ONLY,
     .name = "meshInfo",
   });
   m_meshInfoMap = meshInfo.map();
