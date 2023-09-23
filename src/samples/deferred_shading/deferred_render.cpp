@@ -176,7 +176,7 @@ void DeferredRender::AllocateResources()
 
   uniformBuffer = m_context->createBuffer(etna::Buffer::CreateInfo {
     .size = sizeof(CommonParams),
-    .bufferUsage = vk::BufferUsageFlagBits::eStorageBuffer,
+    .bufferUsage = vk::BufferUsageFlagBits::eUniformBuffer,
     .memoryUsage = VMA_MEMORY_USAGE_CPU_ONLY,
     .name = "uniformBuffer",
   });
@@ -199,10 +199,11 @@ void DeferredRender::AllocateResources()
     }
   }
 
+  m_lights[lightCount++] = {float4(0,0,8,0), float4(1,1,1,100)};
 
   visibleLights = m_context->createBuffer(etna::Buffer::CreateInfo {
     .size = sizeof(uint32_t) * (lightMax + 1),
-    .bufferUsage = vk::BufferUsageFlagBits::eStorageBuffer,
+    .bufferUsage = vk::BufferUsageFlagBits::eStorageBuffer | vk::BufferUsageFlagBits::eTransferDst,
     .memoryUsage = VMA_MEMORY_USAGE_GPU_ONLY,
     .name = "visibleLights", 
   });
