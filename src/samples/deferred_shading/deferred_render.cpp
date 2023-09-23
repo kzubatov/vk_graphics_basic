@@ -199,7 +199,7 @@ void DeferredRender::AllocateResources()
     }
   }
 
-  m_lights[lightCount++] = {float4(0,0,8,0), float4(1,1,1,100)};
+  m_lights[lightCount++] = {float4(0,8,0,0), float4(1,1,1,100)};
 
   visibleLights = m_context->createBuffer(etna::Buffer::CreateInfo {
     .size = sizeof(uint32_t) * (lightMax + 1),

@@ -118,4 +118,5 @@ void main() {
   }
 
   outColor = vec4(pow(resColor, vec3(1.0 / 2.2)), 1.0);
+  outColor.rgb = min(outColor.rgb, vec3(1));
 }
