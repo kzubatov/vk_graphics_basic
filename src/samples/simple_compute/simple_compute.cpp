@@ -112,13 +112,13 @@ void SimpleCompute::SetupSimplePipeline()
   // Заполнение буферов
   auto time = std::chrono::high_resolution_clock::now();
 
-  std::srand(std::time(0));
+  std::mt19937 generator((uint_fast32_t) std::chrono::high_resolution_clock::to_time_t(time));
+  std::uniform_real_distribution<float> ud(-100.f, 100.f);
 
   std::vector<float> data (m_length);
   for (float &x : data) 
   {
-    x = float(std::rand()) / RAND_MAX * std::rand();
-    x = std::rand() & 1 ? -x : x;
+    x = ud(generator);
   }
 
   m_pCopyHelper->UpdateBuffer(m_data, 0, data.data(), sizeof(float) * data.size());

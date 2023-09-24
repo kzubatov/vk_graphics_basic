@@ -1,7 +1,7 @@
-#version 430
+#version 450
 
 #define SHARED_MEM 1
-#define group_size_x 32
+#define group_size_x 256
 layout(local_size_x = group_size_x) in;
 
 layout(push_constant) uniform params {
@@ -32,6 +32,7 @@ void main()
       
       values[gl_LocalInvocationID.x + 6] = idx + 3 >= PushConstant.len ? 0.0 : data[idx + 3]; 
 
+      barrier();
       float sum = 0.0;
       for (int i = -3; i <= 3; ++i) {
         sum += values[gl_LocalInvocationID.x + 3 + i];
