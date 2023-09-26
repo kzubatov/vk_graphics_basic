@@ -4,6 +4,7 @@ layout(std430, push_constant) uniform params_t
 {
   mat4 mProjView;
   uint meshID;
+  vec3 cameraPos;
 } params;
 
 layout(location = 0) out vec4 color;
@@ -32,9 +33,9 @@ layout (location = 0) in FS_IN
 } fsIn;
 
 void main() {
-  vec3 wT = fsIn.wTangent;
-  vec3 wB = fsIn.wBitangent;
-  vec3 wN = fsIn.wNorm;
+  vec3 wT = normalize(fsIn.wTangent);
+  vec3 wB = normalize(fsIn.wBitangent);
+  vec3 wN = normalize(fsIn.wNorm);
 
   vec2 tex = fsIn.texCoord;
 
@@ -56,13 +57,14 @@ void main() {
     roughness = texture(teapotRoughness, tex).r;
     break;    
   case 2:
-    c = texture(flatAlbedo, 16 * tex).rgb;
-    n = texture(flatNormal, 16 * tex).rgb * 2.0 - 1.0;
+    c = texture(flatAlbedo, 8.0 * tex).rgb;
+    n = texture(flatNormal, 8.0 * tex).rgb * 2.0 - 1.0;
     metalness = 0.0;
-    roughness = texture(flatRoughness, 16 * tex).r;
+    roughness = texture(flatRoughness, 8.0 * tex).r;
     break;
   }
 
   color = vec4(c, metalness);
-  normal = vec4(normalize(n.r * wT - n.g * wB + n.b * wN), roughness);
+  n = normalize(n.r * wT + n.g * wB + n.b * wN);
+  normal = vec4(n, roughness);
 }

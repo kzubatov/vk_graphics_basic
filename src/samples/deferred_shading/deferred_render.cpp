@@ -42,39 +42,39 @@ void DeferredRender::LoadTextures() {
 
   commonInfo.name = "bunnyAlbedo";
   commonInfo.format = vk::Format::eR8G8B8A8Unorm;
-  bunnyAlbedoTexture = m_pTextureLoader->load(commonInfo, VK_GRAPHICS_BASIC_ROOT"/resources/textures/plastic/alb6.png");
+  bunnyAlbedoTexture = m_pTextureLoader->load(commonInfo, VK_GRAPHICS_BASIC_ROOT"/resources/textures/bunny/albedo.png");
   
   commonInfo.name = "bunnyNormal";
-  bunnyNormalTexture = m_pTextureLoader->load(commonInfo, VK_GRAPHICS_BASIC_ROOT"/resources/textures/plastic/normal.png");
+  bunnyNormalTexture = m_pTextureLoader->load(commonInfo, VK_GRAPHICS_BASIC_ROOT"/resources/textures/bunny/normal.png");
     
   commonInfo.name = "bunnyRoughness";
   commonInfo.format = vk::Format::eR8Unorm;
-  bunnyRoughnessTexture = m_pTextureLoader->load(commonInfo, VK_GRAPHICS_BASIC_ROOT"/resources/textures/plastic/roughness.png");
+  bunnyRoughnessTexture = m_pTextureLoader->load(commonInfo, VK_GRAPHICS_BASIC_ROOT"/resources/textures/bunny/roughness.png");
   
   commonInfo.name = "teapotAlbedo";
   commonInfo.format = vk::Format::eR8G8B8A8Unorm;
-  teapotAlbedoTexture = m_pTextureLoader->load(commonInfo, VK_GRAPHICS_BASIC_ROOT"/resources/textures/rusted-steel/albedo.png");
+  teapotAlbedoTexture = m_pTextureLoader->load(commonInfo, VK_GRAPHICS_BASIC_ROOT"/resources/textures/teapot/albedo.png");
   
   commonInfo.name = "teapotNormal";
-  teapotNormalTexture = m_pTextureLoader->load(commonInfo, VK_GRAPHICS_BASIC_ROOT"/resources/textures/rusted-steel/normal.png");
+  teapotNormalTexture = m_pTextureLoader->load(commonInfo, VK_GRAPHICS_BASIC_ROOT"/resources/textures/teapot/normal.png");
   
   commonInfo.name = "teapotMetalness";
   commonInfo.format = vk::Format::eR8Unorm;
-  teapotMetalnessTexture = m_pTextureLoader->load(commonInfo, VK_GRAPHICS_BASIC_ROOT"/resources/textures/rusted-steel/metalness.png");
+  teapotMetalnessTexture = m_pTextureLoader->load(commonInfo, VK_GRAPHICS_BASIC_ROOT"/resources/textures/teapot/metalness.png");
   
   commonInfo.name = "teapotRoughness";
-  teapotRoughnessTexture = m_pTextureLoader->load(commonInfo, VK_GRAPHICS_BASIC_ROOT"/resources/textures/rusted-steel/roughness.png");
+  teapotRoughnessTexture = m_pTextureLoader->load(commonInfo, VK_GRAPHICS_BASIC_ROOT"/resources/textures/teapot/roughness.png");
   
   commonInfo.name = "flatAlbedo";
   commonInfo.format = vk::Format::eR8G8B8A8Unorm;
-  flatAlbedoTexture = m_pTextureLoader->load(commonInfo, VK_GRAPHICS_BASIC_ROOT"/resources/textures/rock/albedo.png");
+  flatAlbedoTexture = m_pTextureLoader->load(commonInfo, VK_GRAPHICS_BASIC_ROOT"/resources/textures/flat/albedo.png");
   
   commonInfo.name = "flatNormal";
-  flatNormalTexture = m_pTextureLoader->load(commonInfo, VK_GRAPHICS_BASIC_ROOT"/resources/textures/rock/normal.png");
+  flatNormalTexture = m_pTextureLoader->load(commonInfo, VK_GRAPHICS_BASIC_ROOT"/resources/textures/flat/normal.png");
   
   commonInfo.name = "flatRoughness";
   commonInfo.format = vk::Format::eR8Unorm;
-  flatRoughnessTexture = m_pTextureLoader->load(commonInfo, VK_GRAPHICS_BASIC_ROOT"/resources/textures/rock/roughness.png");
+  flatRoughnessTexture = m_pTextureLoader->load(commonInfo, VK_GRAPHICS_BASIC_ROOT"/resources/textures/flat/roughness.png");
 }
 
 void DeferredRender::PrepareCullingResources() {
@@ -398,6 +398,7 @@ void DeferredRender::DrawSceneCmd(VkCommandBuffer a_cmdBuff, const float4x4& a_w
 
   VkDeviceSize offset = 0u;
   pushConst.projView = a_wvp;
+  pushConst.cameraPos = m_cam.pos;
   for (uint32_t i = 0; i < m_pScnMgr->MeshesNum(); ++i)
   {
     pushConst.id = i;

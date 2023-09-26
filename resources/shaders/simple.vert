@@ -11,8 +11,8 @@ layout(std430, push_constant) uniform params_t
 {
   mat4 mProjView;
   uint meshID;
+  vec3 cameraPos;
 } params;
-
 
 layout (location = 0) out VS_OUT
 {
@@ -50,12 +50,15 @@ void main(void)
     offset += mInfo[i].instanceCount; 
   }
 
-  const vec4 wNorm = vec4(DecodeNormal(floatBitsToInt(vPosNorm.w)),         0.0f);
+  const vec4 wNorm = vec4(DecodeNormal(floatBitsToInt(vPosNorm.w)), 0.0f);
   const vec4 wTang = vec4(DecodeNormal(floatBitsToInt(vTexCoordAndTang.z)), 0.0f);
 
-  vOut.wPos       = (modelMatrix[offset + visibleInstances[offset + gl_InstanceIndex]] * vec4(vPosNorm.xyz, 1.0f)).xyz;
-  vOut.wNorm      = normalize(mat3(transpose(inverse(modelMatrix[offset + visibleInstances[offset + gl_InstanceIndex]]))) * wNorm.xyz);
-  vOut.wTangent   = normalize(mat3(transpose(inverse(modelMatrix[offset + visibleInstances[offset + gl_InstanceIndex]]))) * wTang.xyz);
+  vOut.wPos = (modelMatrix[offset + visibleInstances[offset + gl_InstanceIndex]] * vec4(vPosNorm.xyz, 1.0f)).xyz;
+  vOut.wNorm = normalize(mat3(transpose(inverse(modelMatrix[offset + visibleInstances[offset + gl_InstanceIndex]]))) * wNorm.xyz);
+  vOut.wTangent = normalize(mat3(transpose(inverse(modelMatrix[offset + visibleInstances[offset + gl_InstanceIndex]]))) * wTang.xyz);
+  
+  vOut.wTangent = normalize(vOut.wTangent - dot(vOut.wNorm, vOut.wTangent) * vOut.wNorm);
+  
   vOut.wBitangent = cross(vOut.wNorm, vOut.wTangent);
   vOut.texCoord   = vTexCoordAndTang.xy;
 

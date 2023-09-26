@@ -36,7 +36,11 @@ layout(binding = 5) uniform common_info {
 } commonInfo;
 
 vec3 fresnel(vec3 F0, float nv) {
-    return mix(F0, vec3(1), pow(1.0 - nv, 5.0));
+  float mul = pow(1.0 - nv, 5.0);
+  if (isnan(mul)) {
+    mul = 0.0;
+  }
+  return F0 + (vec3(1.0) - F0) * mul;
 }
 
 float G_Neumann(float nl, float nv) {
@@ -47,18 +51,25 @@ float G_CookTorrance(float nl, float nv, float nh, float vh) {
     return min(1.0, min(2.0 * nh * nv / vh, 2.0 * nh * nl / vh));
 }
 
-float G_Implicit(float nl, float nv) {
-    return nl * nv;
+float D_Beckmann(float roughness, float nh) {
+  float r4 = roughness * roughness;
+  r4 *= r4;
+  float nh2 = nh * nh;
+  return exp((nh2 - 1.0) / (r4 * nh2)) / max(0.01, PI * r4 * nh2 * nh2); 
 }
 
-float D_Beckmann(float roughness, float nh) {
-    float nh2 = max(0.01, nh * nh);
-    float tmp = nh2 * roughness * roughness;
-    return 1.0 / tmp / nh2 * exp((nh2 - 1.0) / tmp);
+float D_GGX(float roughness, float nh) {
+  float roughness2 = roughness * roughness;
+  float nh2 = nh * nh;
+
+  float tmp = nh2 * (roughness2 - 1.0) + 1.0;
+  tmp *= tmp;
+	
+  return roughness2 / PI / tmp;
 }
 
 float CookTorrance(float nl, float nv, float nh, float vh, float roughness) {
-    return D_Beckmann(roughness, nh) * G_CookTorrance(nl, nv, nh, vh);
+  return D_Beckmann(roughness, nh) * G_CookTorrance(nl, nv, nh, vh);
 }
 
 void main() {
@@ -79,10 +90,7 @@ void main() {
   vec3 v = normalize(commonInfo.cameraPos.xyz - wPos);
   float nv = max(0.0, dot(normal, v));
   vec3 F0 = mix(vec3(0.04), color, metalness);
-  vec3 specFresnel = max(vec3(0.0), fresnel(F0, nv));
   
-  vec3 resColor = vec3(0);
-
   uvec2 fragCoord = uvec2(gl_FragCoord);
   uint idx = fragCoord.x + fragCoord.y * commonInfo.width;
 
@@ -98,6 +106,7 @@ void main() {
     }
   }
 
+  vec3 resColor = vec3(0);
   vec3 lightPos;
   vec3 lightColor;
   for (uint i = 0; i < lightCount; ++i) {
@@ -111,11 +120,13 @@ void main() {
     float nh = max(0.0, dot(normal, h));
     float vh = max(0.0, dot(v, h));
 
-    vec3 spec = specFresnel * CookTorrance(nl, nv, nh, vh, roughness) / max(0.01, 4.0 * nv);
-    vec3 diff = max(vec3(0), (vec3(1) - specFresnel) * nl / PI);
+    vec3 specFresnel = fresnel(F0, nh);
+
+    vec3 spec = specFresnel * CookTorrance(nl, nv, nh, vh, roughness) * nl / max(0.001, 4.0 * nv * nl);
+    vec3 diff = (vec3(1) - specFresnel) * nl / PI;
 
     resColor += (diff * mix(color, vec3(0), metalness) + spec) * lightColor;
   }
 
-  outColor = vec4(pow(resColor, vec3(1.0 / 2.2)), 1.0);
+  outColor = vec4(pow(resColor, vec3(1.0 / 2.2)), 1);
 }

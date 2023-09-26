@@ -96,6 +96,9 @@ private:
   {
     float4x4 projView;
     uint32_t id;
+    uint32_t bytes[3];
+    float3 cameraPos;
+    uint32_t bytes1;
   } pushConst;
 
   struct CommonParams
