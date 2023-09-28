@@ -227,7 +227,7 @@ void SimpleShadowmapRender::PostProcessingCmd(VkCommandBuffer a_cmdBuff, etna::I
 
   vkCmdPushConstants(a_cmdBuff, m_blurPipeline.getVkPipelineLayout(),
     VK_SHADER_STAGE_COMPUTE_BIT, 0, sizeof(data), data);
-  vkCmdDispatch(a_cmdBuff, a_width / 16 + (bool) (a_width % 16), a_height / 16 + (bool) (a_height % 16), 1);
+  vkCmdDispatch(a_cmdBuff, a_width / m_compGroupAxisSize + (bool) (a_width % m_compGroupAxisSize), a_height / m_compGroupAxisSize + (bool) (a_height % m_compGroupAxisSize), 1);
 }
 
 void SimpleShadowmapRender::BuildCommandBufferSimple(VkCommandBuffer a_cmdBuff, VkImage a_targetImage, VkImageView a_targetImageView)

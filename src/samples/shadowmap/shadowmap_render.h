@@ -24,7 +24,7 @@ class IRenderGUI;
 class SimpleShadowmapRender : public IRender
 {
 public:
-  SimpleShadowmapRender(uint32_t a_width, uint32_t a_height);
+  SimpleShadowmapRender(uint32_t a_width, uint32_t a_height, uint32_t a_compGroupAxisSize = 16u);
   ~SimpleShadowmapRender();
 
   uint32_t     GetWidth()      const override { return m_width; }
@@ -88,6 +88,7 @@ private:
   VulkanSwapChain m_swapchain;
 
   Camera   m_cam;
+  uint32_t m_compGroupAxisSize = 16u;
   uint32_t m_width  = 1024u;
   uint32_t m_height = 1024u;
   uint32_t m_framesInFlight = 2u;

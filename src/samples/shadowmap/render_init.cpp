@@ -3,7 +3,7 @@
 #include <etna/Etna.hpp>
 
 
-SimpleShadowmapRender::SimpleShadowmapRender(uint32_t a_width, uint32_t a_height) : m_width(a_width), m_height(a_height)
+SimpleShadowmapRender::SimpleShadowmapRender(uint32_t a_width, uint32_t a_height, uint32_t a_compGroupAxisSize) : m_width(a_width), m_height(a_height), m_compGroupAxisSize(a_compGroupAxisSize)
 {
   m_uniforms.baseColor = LiteMath::float3(0.9f, 0.92f, 1.0f);
 }
