@@ -79,6 +79,7 @@ private:
 
   etna::GraphicsPipeline m_basicForwardPipeline {};
   etna::GraphicsPipeline m_shadowPipeline {};
+  etna::GraphicsPipeline m_planePipeline {};
   etna::ComputePipeline m_blurPipeline {};
 
   std::shared_ptr<vk_utils::DescriptorMaker> m_pBindings = nullptr;
@@ -139,7 +140,8 @@ private:
   void BuildCommandBufferSimple(VkCommandBuffer a_cmdBuff, VkImage a_targetImage, VkImageView a_targetImageView);
 
   void DrawSceneCmd(VkCommandBuffer a_cmdBuff, const float4x4& a_wvp);
-  void PostProcessingCmd(VkCommandBuffer a_cmdBuff, uint32_t a_width, uint32_t a_height);
+  void PostProcessingCmd(VkCommandBuffer a_cmdBuff, etna::Image &readImg, etna::Image &writeImg,
+    uint32_t a_width, uint32_t a_height);
 
   void loadShaders();
 
