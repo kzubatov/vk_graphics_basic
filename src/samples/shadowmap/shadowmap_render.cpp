@@ -43,18 +43,18 @@ void SimpleShadowmapRender::AllocateResources()
   m_uboMappedMem = constants.map();
 
 
-  blurPass1 = m_context->createImage(etna::Image::CreateInfo
+  mainBlurImage = m_context->createImage(etna::Image::CreateInfo
   {
     .extent = vk::Extent3D{m_width, m_height, 1},
-    .name = "blurPass1",
+    .name = "mainBlurImage",
     .format = vk::Format::eR8G8B8A8Unorm,
     .imageUsage = vk::ImageUsageFlagBits::eStorage | vk::ImageUsageFlagBits::eColorAttachment | vk::ImageUsageFlagBits::eSampled,
   });
 
-  blurPass2 = m_context->createImage(etna::Image::CreateInfo
+  additionalBlurImage = m_context->createImage(etna::Image::CreateInfo
   {
     .extent = vk::Extent3D{m_height, m_width, 1},
-    .name = "blurPass2",
+    .name = "additionalBlurImage",
     .format = vk::Format::eR8G8B8A8Unorm,
     .imageUsage = vk::ImageUsageFlagBits::eStorage | vk::ImageUsageFlagBits::eSampled,
   });
@@ -82,8 +82,8 @@ void SimpleShadowmapRender::DeallocateResources()
   shadowMap.reset();
   m_swapchain.Cleanup();
   vkDestroySurfaceKHR(GetVkInstance(), m_surface, nullptr);  
-  blurPass1.reset();
-  blurPass2.reset();
+  mainBlurImage.reset();
+  additionalBlurImage.reset();
   constants = etna::Buffer();
 }
 
@@ -208,7 +208,7 @@ void SimpleShadowmapRender::DrawSceneCmd(VkCommandBuffer a_cmdBuff, const float4
 
 void SimpleShadowmapRender::PostProcessingCmd(VkCommandBuffer a_cmdBuff, etna::Image &readImg, etna::Image &writeImg,
   uint32_t a_width, uint32_t a_height) {
-  const uint32_t data[] = {a_width, a_height};
+  const uint32_t data[] = {a_width};
 
   auto GaussianBlurInfo = etna::get_shader_program("GaussianBlur");
 
@@ -227,7 +227,7 @@ void SimpleShadowmapRender::PostProcessingCmd(VkCommandBuffer a_cmdBuff, etna::I
 
   vkCmdPushConstants(a_cmdBuff, m_blurPipeline.getVkPipelineLayout(),
     VK_SHADER_STAGE_COMPUTE_BIT, 0, sizeof(data), data);
-  vkCmdDispatch(a_cmdBuff, a_width / m_compGroupAxisSize + (bool) (a_width % m_compGroupAxisSize), a_height / m_compGroupAxisSize + (bool) (a_height % m_compGroupAxisSize), 1);
+  vkCmdDispatch(a_cmdBuff, a_width / m_compGroupAxisSize + (bool) (a_width % m_compGroupAxisSize), a_height, 1);
 }
 
 void SimpleShadowmapRender::BuildCommandBufferSimple(VkCommandBuffer a_cmdBuff, VkImage a_targetImage, VkImageView a_targetImageView)
@@ -262,7 +262,7 @@ void SimpleShadowmapRender::BuildCommandBufferSimple(VkCommandBuffer a_cmdBuff, 
 
     VkDescriptorSet vkSet = set.getVkSet();
 
-    etna::RenderTargetState renderTargets(a_cmdBuff, {m_width, m_height}, {blurPass1}, mainViewDepth);
+    etna::RenderTargetState renderTargets(a_cmdBuff, {m_width, m_height}, {mainBlurImage}, mainViewDepth);
 
     vkCmdBindPipeline(a_cmdBuff, VK_PIPELINE_BIND_POINT_GRAPHICS, m_basicForwardPipeline.getVkPipeline());
     vkCmdBindDescriptorSets(a_cmdBuff, VK_PIPELINE_BIND_POINT_GRAPHICS,
@@ -286,7 +286,7 @@ void SimpleShadowmapRender::BuildCommandBufferSimple(VkCommandBuffer a_cmdBuff, 
   barriers[0].newLayout = VK_IMAGE_LAYOUT_GENERAL,
   barriers[0].srcQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED,
   barriers[0].dstQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED,
-  barriers[0].image = blurPass1.get(),
+  barriers[0].image = mainBlurImage.get(),
   barriers[0].subresourceRange = {
     .aspectMask = VK_IMAGE_ASPECT_COLOR_BIT,
     .baseMipLevel = 0,
@@ -302,7 +302,7 @@ void SimpleShadowmapRender::BuildCommandBufferSimple(VkCommandBuffer a_cmdBuff, 
   barriers[1].dstAccessMask = VK_ACCESS_2_SHADER_WRITE_BIT;
   barriers[1].oldLayout = VK_IMAGE_LAYOUT_UNDEFINED;
   barriers[1].newLayout = VK_IMAGE_LAYOUT_GENERAL;
-  barriers[1].image = blurPass2.get();
+  barriers[1].image = additionalBlurImage.get();
 
   VkDependencyInfo dependencyInfo = {
     .sType = VK_STRUCTURE_TYPE_DEPENDENCY_INFO,
@@ -325,7 +325,7 @@ void SimpleShadowmapRender::BuildCommandBufferSimple(VkCommandBuffer a_cmdBuff, 
 
   vkCmdPipelineBarrier2(a_cmdBuff, &dependencyInfo);
   
-  PostProcessingCmd(a_cmdBuff, blurPass1, blurPass2, m_width, m_height);
+  PostProcessingCmd(a_cmdBuff, mainBlurImage, additionalBlurImage, m_width, m_height);
 
   dependencyInfo.imageMemoryBarrierCount = barriers.size();
   dependencyInfo.pImageMemoryBarriers = barriers.data();
@@ -342,7 +342,7 @@ void SimpleShadowmapRender::BuildCommandBufferSimple(VkCommandBuffer a_cmdBuff, 
 
   vkCmdPipelineBarrier2(a_cmdBuff, &dependencyInfo);
 
-  PostProcessingCmd(a_cmdBuff, blurPass2, blurPass1, m_height, m_width);
+  PostProcessingCmd(a_cmdBuff, additionalBlurImage, mainBlurImage, m_height, m_width);
 
   barriers[0].srcStageMask = VK_PIPELINE_STAGE_2_COMPUTE_SHADER_BIT;
   barriers[0].srcAccessMask = VK_ACCESS_2_SHADER_WRITE_BIT;
@@ -361,7 +361,7 @@ void SimpleShadowmapRender::BuildCommandBufferSimple(VkCommandBuffer a_cmdBuff, 
 
     auto set = etna::create_descriptor_set(planeInfo.getDescriptorLayoutId(0), a_cmdBuff,
     {
-      etna::Binding {0, blurPass1.genBinding(defaultSampler.get(), vk::ImageLayout::eShaderReadOnlyOptimal)},
+      etna::Binding {0, mainBlurImage.genBinding(defaultSampler.get(), vk::ImageLayout::eShaderReadOnlyOptimal)},
     });
 
     VkDescriptorSet vkSet = set.getVkSet();

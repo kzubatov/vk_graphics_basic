@@ -47,8 +47,8 @@ private:
   etna::GlobalContext* m_context;
   etna::Image mainViewDepth;
   etna::Image shadowMap;
-  etna::Image blurPass1;
-  etna::Image blurPass2;
+  etna::Image mainBlurImage;
+  etna::Image additionalBlurImage;
   etna::Sampler defaultSampler;
   etna::Buffer constants;
 

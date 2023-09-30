@@ -1,49 +1,38 @@
 #version 450
 
-#define WORK_GROUP_AXIS_SIZE 16
-const float SIGMA = 1.0;
+#define WORK_GROUP_AXIS_SIZE 128
+const float SIGMA = 20.0;
 
-layout(local_size_x = WORK_GROUP_AXIS_SIZE, local_size_y = WORK_GROUP_AXIS_SIZE) in;
+layout(local_size_x = WORK_GROUP_AXIS_SIZE) in;
 
 layout(push_constant) uniform params {
-  uvec2 resolution;
+  uint width;
 } PushConstant;
 
 layout(binding = 0, rgba8) uniform readonly image2D srcImage;
 layout(binding = 1, rgba8) uniform writeonly image2D dstImage;
 
 const int R = int(ceil(3.0 * SIGMA));
-const int TILE_AXIS_SIZE = WORK_GROUP_AXIS_SIZE + 2 * R;
-shared vec3 tile[TILE_AXIS_SIZE][TILE_AXIS_SIZE];
-shared float fltr[1 + R];
+const int WINDOW_LEN = WORK_GROUP_AXIS_SIZE + 2 * R;
+shared vec3 window[WINDOW_LEN];
 
 void main() {
-  if (gl_GlobalInvocationID.x < PushConstant.resolution.x
-      && gl_GlobalInvocationID.y < PushConstant.resolution.y) {
-    uint offset_x, offset_y = 0;
-    ivec2 global_idx = ivec2(gl_GlobalInvocationID) - ivec2(R);
+  if (gl_GlobalInvocationID.x < PushConstant.width) {
+    uint offset = 0;
+    ivec2 globalID = ivec2(gl_GlobalInvocationID.xy) - ivec2(R, 0);
 
-    do {
-      offset_x = 0;
-      do {
-        tile[gl_LocalInvocationID.y + offset_y][gl_LocalInvocationID.x + offset_x] = imageLoad(srcImage, global_idx + ivec2(offset_x, offset_y)).rgb;     
-        offset_x += max(1, min(WORK_GROUP_AXIS_SIZE, TILE_AXIS_SIZE - WORK_GROUP_AXIS_SIZE - offset_x));
-      } while (offset_x <= TILE_AXIS_SIZE - WORK_GROUP_AXIS_SIZE);
-      offset_y += max(1, min(WORK_GROUP_AXIS_SIZE, TILE_AXIS_SIZE - WORK_GROUP_AXIS_SIZE - offset_y));
-    } while (offset_y <= TILE_AXIS_SIZE - WORK_GROUP_AXIS_SIZE);
-
-    const float G_DIVISOR = sqrt(2 * 3.1415 * SIGMA * SIGMA);
-
-    int idx = int(gl_LocalInvocationID.y * WORK_GROUP_AXIS_SIZE + gl_LocalInvocationID.x);
-    if (idx <= R) {
-      fltr[idx] = exp(-(idx * idx) / (2 * SIGMA * SIGMA)) / G_DIVISOR;
+    while (offset + gl_LocalInvocationID.x < WINDOW_LEN) {
+      window[offset + gl_LocalInvocationID.x] = imageLoad(srcImage, globalID + ivec2(offset, 0)).rgb;
+      offset += WORK_GROUP_AXIS_SIZE;
     }
 
+    const float G_DIVISOR = sqrt(2 * 3.1415 * SIGMA * SIGMA);
     barrier();
 
-    vec3 resColor = vec3(0);
-    for (int i = -R; i <= R; ++i) {
-      resColor += tile[R + gl_LocalInvocationID.y][R + gl_LocalInvocationID.x + i] * vec3(fltr[abs(i)]);
+    vec3 resColor = window[gl_LocalInvocationID.x + R] / G_DIVISOR;
+    for (int i = 1; i <= R; ++i) {
+      resColor += (window[gl_LocalInvocationID.x + R - i] + window[gl_LocalInvocationID.x + R + i]) * 
+        vec3(exp(-(i * i) / (2 * SIGMA * SIGMA)) / G_DIVISOR);
     }
 
     imageStore(dstImage, ivec2(gl_GlobalInvocationID.yx), vec4(resColor, 1.0));
