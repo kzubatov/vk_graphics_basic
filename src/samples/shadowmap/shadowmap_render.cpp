@@ -53,7 +53,7 @@ void SimpleShadowmapRender::AllocateResources()
 
   additionalBlurImage = m_context->createImage(etna::Image::CreateInfo
   {
-    .extent = vk::Extent3D{m_height, m_width, 1},
+    .extent = vk::Extent3D{m_width, m_height, 1},
     .name = "additionalBlurImage",
     .format = vk::Format::eR8G8B8A8Unorm,
     .imageUsage = vk::ImageUsageFlagBits::eStorage | vk::ImageUsageFlagBits::eSampled,
@@ -208,8 +208,7 @@ void SimpleShadowmapRender::DrawSceneCmd(VkCommandBuffer a_cmdBuff, const float4
 
 void SimpleShadowmapRender::PostProcessingCmd(VkCommandBuffer a_cmdBuff, etna::Image &readImg, etna::Image &writeImg,
   uint32_t a_width, uint32_t a_height) {
-  const uint32_t data[] = {a_width};
-
+  
   auto GaussianBlurInfo = etna::get_shader_program("GaussianBlur");
 
   vkCmdBindPipeline(a_cmdBuff, VK_PIPELINE_BIND_POINT_COMPUTE, m_blurPipeline.getVkPipeline());
@@ -225,9 +224,14 @@ void SimpleShadowmapRender::PostProcessingCmd(VkCommandBuffer a_cmdBuff, etna::I
   vkCmdBindDescriptorSets(a_cmdBuff, VK_PIPELINE_BIND_POINT_COMPUTE,
     m_blurPipeline.getVkPipelineLayout(), 0, 1, &vkSet, 0, VK_NULL_HANDLE);
 
+  static uint32_t mask_x = 1;
+  uint32_t data[] = {a_width, mask_x};
   vkCmdPushConstants(a_cmdBuff, m_blurPipeline.getVkPipelineLayout(),
     VK_SHADER_STAGE_COMPUTE_BIT, 0, sizeof(data), data);
+  
   vkCmdDispatch(a_cmdBuff, a_width / m_compGroupAxisSize + (bool) (a_width % m_compGroupAxisSize), a_height, 1);
+
+  mask_x ^= 1;
 }
 
 void SimpleShadowmapRender::BuildCommandBufferSimple(VkCommandBuffer a_cmdBuff, VkImage a_targetImage, VkImageView a_targetImageView)
