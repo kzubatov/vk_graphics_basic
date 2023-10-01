@@ -17,22 +17,22 @@ const int WINDOW_LEN = WORK_GROUP_AXIS_SIZE + 2 * R;
 shared vec3 window[WINDOW_LEN];
 
 void main() {
+  uint offset = 0;
+  ivec2 globalID = ivec2(gl_GlobalInvocationID.xy) - ivec2(R, 0);
+
+  while (offset + gl_LocalInvocationID.x < WINDOW_LEN) {
+    window[offset + gl_LocalInvocationID.x] = imageLoad(srcImage, globalID + ivec2(offset, 0)).rgb;
+    offset += WORK_GROUP_AXIS_SIZE;
+  }
+
+  const float G_DIVISOR = 1.0 / sqrt(2 * 3.1415 * SIGMA * SIGMA);
+  barrier();
+
   if (gl_GlobalInvocationID.x < PushConstant.width) {
-    uint offset = 0;
-    ivec2 globalID = ivec2(gl_GlobalInvocationID.xy) - ivec2(R, 0);
-
-    while (offset + gl_LocalInvocationID.x < WINDOW_LEN) {
-      window[offset + gl_LocalInvocationID.x] = imageLoad(srcImage, globalID + ivec2(offset, 0)).rgb;
-      offset += WORK_GROUP_AXIS_SIZE;
-    }
-
-    const float G_DIVISOR = sqrt(2 * 3.1415 * SIGMA * SIGMA);
-    barrier();
-
-    vec3 resColor = window[gl_LocalInvocationID.x + R] / G_DIVISOR;
+    vec3 resColor = window[gl_LocalInvocationID.x + R] * G_DIVISOR;
     for (int i = 1; i <= R; ++i) {
       resColor += (window[gl_LocalInvocationID.x + R - i] + window[gl_LocalInvocationID.x + R + i]) * 
-        vec3(exp(-(i * i) / (2 * SIGMA * SIGMA)) / G_DIVISOR);
+        vec3(exp(-(i * i) / (2 * SIGMA * SIGMA)) * G_DIVISOR);
     }
 
     imageStore(dstImage, ivec2(gl_GlobalInvocationID.yx), vec4(resColor, 1.0));
