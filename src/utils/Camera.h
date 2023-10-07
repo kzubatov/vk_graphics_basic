@@ -11,13 +11,14 @@ using LiteMath::DEG_TO_RAD;
 
 struct Camera
 {
-  Camera() : pos(0.0f, 0.0f, +5.0f), lookAt(0, 0, 0), up(0, 1, 0), fov(45.0f), tdist(100.0f) {}
+  Camera() : pos(0.0f, 0.0f, +5.0f), lookAt(0, 0, 0), up(0, 1, 0), fov(45.0f), tdist(100.0f), nearPlane(0.1f) {}
 
   float3 pos;
   float3 lookAt;
   float3 up;
   float  fov;
   float  tdist;
+  float nearPlane;
 
   float3 forward() const { return normalize(lookAt - pos); }
   float3 right()   const { return cross(forward(), up); }

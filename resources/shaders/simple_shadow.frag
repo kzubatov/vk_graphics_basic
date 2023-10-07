@@ -14,12 +14,12 @@ layout (location = 0 ) in VS_OUT
   vec2 texCoord;
 } surf;
 
-layout(binding = 0, set = 0) uniform AppData
+layout(set = 0, binding = 0) uniform AppData
 {
   UniformParams Params;
 };
 
-layout (binding = 1) uniform sampler2D shadowMap;
+layout (set = 0, binding = 1) uniform sampler2D shadowMap;
 
 float mainLight(vec3 pos)
 {

@@ -86,8 +86,8 @@ private:
   struct
   {
     float4x4 projView;
-    float4x4 model;
-  } pushConst2M;
+    uint32_t offset;
+  } pushConst;
 
   float4x4 m_worldViewProj;
   float4x4 m_lightMatrix;    
@@ -97,11 +97,30 @@ private:
   VkDeviceMemory m_uboAlloc = VK_NULL_HANDLE;
   void* m_uboMappedMem = nullptr;
 
+  VkBuffer m_matrixBuffer = VK_NULL_HANDLE;
+  VkDeviceMemory m_matrixBufferAlloc = VK_NULL_HANDLE;
+  void* m_matrixBufferMappedMem = nullptr;
+
+  VkBuffer m_visibleInstances = VK_NULL_HANDLE;
+  VkDeviceMemory m_visibleInstancesAlloc = VK_NULL_HANDLE;
+
+  VkBuffer m_drawIndexedIndirectCommandBuffer = VK_NULL_HANDLE;
+  VkDeviceMemory m_drawIndexedIndirectCommandBufferAlloc = VK_NULL_HANDLE;
+
+  VkBuffer m_boundingSpheresBuffer = VK_NULL_HANDLE;
+  VkDeviceMemory m_boundingSpheresBufferAlloc = VK_NULL_HANDLE;
+  void* m_boundingSpheresBufferMappedMem = nullptr;
+  
+  std::vector<uint32_t> m_meshInstancesCount;
+  // VkBuffer m_meshInstancesCountBuffer = VK_NULL_HANDLE;
+  // VkDeviceMemory m_meshInstancesCountBufferAlloc = VK_NULL_HANDLE;
+  // void* m_meshInstancesCountBufferMappedMem = nullptr;
+
   pipeline_data_t m_basicForwardPipeline {};
   pipeline_data_t m_shadowPipeline {};
 
-  VkDescriptorSet m_dSet = VK_NULL_HANDLE;
-  VkDescriptorSetLayout m_dSetLayout = VK_NULL_HANDLE;
+  std::vector<VkDescriptorSet> m_dSet {};
+  std::vector<VkDescriptorSetLayout> m_dSetLayout {};
   VkRenderPass m_screenRenderPass = VK_NULL_HANDLE; // main renderpass
 
   std::shared_ptr<vk_utils::DescriptorMaker> m_pBindings = nullptr;
@@ -164,6 +183,12 @@ private:
     bool   usePerspectiveM;  ///!< use perspective matrix if true and ortographics otherwise
   
   } m_light;
+
+  struct CameraFrustum {
+    float4 plane[6];
+  } m_frustum[2];
+
+  void UpdateFrustum(uint32_t a_camID);
  
   void DrawFrameSimple();
 
@@ -179,8 +204,15 @@ private:
   void CleanupPipelineAndSwapchain();
   void RecreateSwapChain();
 
+  void CreateMeshesBuffers();
+  void UpdateMeshesBuffers();
+
   void CreateUniformBuffer();
   void UpdateUniformBuffer(float a_time);
+
+  void CreateIndirectDrawBuffers();
+  void UpdateIndirectDrawBuffers();
+  void CullSceneCmd(VkCommandBuffer a_cmdBuff, const Camera &cam);
 
   void Cleanup();
 
