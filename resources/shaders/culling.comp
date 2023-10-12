@@ -1,0 +1,75 @@
+#version 450
+layout(local_size_x = 128) in;
+
+layout(push_constant) uniform params
+{
+  vec4 plane[6];
+  uint meshesCount;
+} PushConstant;
+
+layout(binding = 0) readonly buffer matrices
+{
+  mat4 modelMatrix[];
+};
+
+layout(binding = 1) readonly buffer bounding_sphere
+{
+  vec4 sphere[];
+};
+
+layout(binding = 2) buffer visible
+{
+  uint visibleInstances[];
+};
+
+struct drawIndirectInfo
+{
+  uint indexCount;
+  uint instanceCount;
+  uint firstIndex;
+  int  vertexOffset;
+  uint firstInstance;
+};
+
+layout(binding = 3) buffer info
+{
+  drawIndirectInfo drawInfo[];
+};
+
+layout(binding = 4) readonly buffer total_inst_count
+{
+  uint totalInstanceCount[];
+};
+
+bool isSphereinFrustum(vec3 center, float r)
+{
+  bool inside = true;
+  for (uint i = 0; i < 6; ++i)
+  {
+    float d = dot(center, PushConstant.plane[i].xyz) - PushConstant.plane[i].w + r;
+    inside = inside && d >= 0.0;
+  }
+  return inside;
+}
+
+void main()
+{
+  uint offset = 0;
+  uint meshID = 0;
+  while (meshID < PushConstant.meshesCount && offset + totalInstanceCount[meshID] <= gl_GlobalInvocationID.x)
+  {
+    offset += totalInstanceCount[meshID++];
+  }
+
+  if (meshID < PushConstant.meshesCount && offset + totalInstanceCount[meshID] > gl_GlobalInvocationID.x)
+  {
+    vec4 center = modelMatrix[gl_GlobalInvocationID.x] * vec4(sphere[meshID].xyz, 1.0);
+    float r = length(modelMatrix[gl_GlobalInvocationID.x][0]) * sphere[meshID].w;
+
+    if (isSphereinFrustum(center.xyz, r))
+    {
+      visibleInstances[atomicAdd(drawInfo[meshID].instanceCount, 1u) + offset] = gl_GlobalInvocationID.x - offset;
+    }
+  }
+  barrier();
+}

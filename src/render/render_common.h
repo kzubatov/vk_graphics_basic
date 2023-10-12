@@ -12,7 +12,7 @@ struct AppInput
   AppInput(){
     cams[1].pos    = float3(4.0f, 4.0f, 4.0f);
     cams[1].lookAt = float3(0, 0, 0);
-    cams[1].up     = float3(0, 1, 0);
+    cams[1].up     = float3(-1, 2, -1) / 3.0f;
   }
 
   enum {MAXKEYS = 384};

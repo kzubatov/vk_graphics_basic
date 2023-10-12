@@ -11,6 +11,7 @@
 #include <vk_images.h>
 #include <vk_swapchain.h>
 #include <vk_quad.h>
+#include <vk_buffers.h>
 
 #include <string>
 #include <iostream>
@@ -101,23 +102,30 @@ private:
   VkDeviceMemory m_matrixBufferAlloc = VK_NULL_HANDLE;
   void* m_matrixBufferMappedMem = nullptr;
 
-  VkBuffer m_visibleInstances = VK_NULL_HANDLE;
-  VkDeviceMemory m_visibleInstancesAlloc = VK_NULL_HANDLE;
+  VkBuffer m_shadowMapVisibleInstancesBuffer = VK_NULL_HANDLE;
+  VkDeviceMemory m_shadowMapVisibleInstancesBufferAlloc = VK_NULL_HANDLE;
 
-  VkBuffer m_drawIndexedIndirectCommandBuffer = VK_NULL_HANDLE;
-  VkDeviceMemory m_drawIndexedIndirectCommandBufferAlloc = VK_NULL_HANDLE;
+  VkBuffer m_forwardVisibleInstancesBuffer = VK_NULL_HANDLE;
+  VkDeviceMemory m_forwardVisibleInstancesBufferAlloc = VK_NULL_HANDLE;
+
+  VkBuffer m_shadowMapDrawIndirectCmdBuffer = VK_NULL_HANDLE;
+  VkDeviceMemory m_shadowMapDrawIndirectCmdBufferAlloc = VK_NULL_HANDLE;
+
+  VkBuffer m_forwardDrawIndirectCmdBuffer = VK_NULL_HANDLE;
+  VkDeviceMemory m_forwardDrawIndirectCmdBufferAlloc = VK_NULL_HANDLE;
 
   VkBuffer m_boundingSpheresBuffer = VK_NULL_HANDLE;
   VkDeviceMemory m_boundingSpheresBufferAlloc = VK_NULL_HANDLE;
   void* m_boundingSpheresBufferMappedMem = nullptr;
-  
-  std::vector<uint32_t> m_meshInstancesCount;
-  // VkBuffer m_meshInstancesCountBuffer = VK_NULL_HANDLE;
-  // VkDeviceMemory m_meshInstancesCountBufferAlloc = VK_NULL_HANDLE;
-  // void* m_meshInstancesCountBufferMappedMem = nullptr;
+
+  std::vector<uint32_t> m_meshInstancesCount = {};
+  VkBuffer m_meshInstancesCountBuffer = VK_NULL_HANDLE;
+  VkDeviceMemory m_meshInstancesCountBufferAlloc = VK_NULL_HANDLE;
+  void* m_meshInstancesCountBufferMappedMem = nullptr;
 
   pipeline_data_t m_basicForwardPipeline {};
   pipeline_data_t m_shadowPipeline {};
+  pipeline_data_t m_cullingPipeline {};
 
   std::vector<VkDescriptorSet> m_dSet {};
   std::vector<VkDescriptorSetLayout> m_dSetLayout {};
@@ -167,10 +175,11 @@ private:
   struct ShadowMapCam
   {
     ShadowMapCam() 
-    {  
+    { 
       cam.pos    = float3(4.0f, 4.0f, 4.0f);
       cam.lookAt = float3(0, 0, 0);
-      cam.up     = float3(0, 1, 0);
+      cam.up     = float3(-1, 2, -1) / 3.0f;
+      cam.tdist = 40.f;
   
       radius          = 5.0f;
       lightTargetDist = 20.0f;
@@ -188,7 +197,20 @@ private:
     float4 plane[6];
   } m_frustum[2];
 
-  void UpdateFrustum(uint32_t a_camID);
+  struct 
+  {
+    CameraFrustum frustum;
+    uint32_t meshesCount;
+  } cullPushConst;
+
+  void CreateBuffer(VkBuffer &buffer, VkDeviceMemory &memory, 
+                    VkDeviceSize size, VkBufferUsageFlags bufFlags, 
+                    VkMemoryPropertyFlags memFlags);
+  void CreateBuffer(VkBuffer &buffer, VkDeviceMemory &memory, void **map, 
+                    VkDeviceSize size, VkBufferUsageFlags bufFlags,
+                    VkMemoryPropertyFlags memFlags);
+
+  void UpdateFrustum(const Camera &cam, uint32_t a_camID);
  
   void DrawFrameSimple();
 
@@ -198,21 +220,20 @@ private:
   void BuildCommandBufferSimple(VkCommandBuffer a_cmdBuff, VkFramebuffer a_frameBuff,
                                 VkImageView a_targetImageView, VkPipeline a_pipeline);
 
-  void DrawSceneCmd(VkCommandBuffer a_cmdBuff, const float4x4& a_wvp);
+  void DrawSceneCmd(VkCommandBuffer a_cmdBuff, const float4x4& a_wvp, uint32_t a_cameraId);
 
   void SetupSimplePipeline();
   void CleanupPipelineAndSwapchain();
   void RecreateSwapChain();
 
   void CreateMeshesBuffers();
-  void UpdateMeshesBuffers();
+  void InitMeshesBuffers();
 
   void CreateUniformBuffer();
   void UpdateUniformBuffer(float a_time);
 
   void CreateIndirectDrawBuffers();
-  void UpdateIndirectDrawBuffers();
-  void CullSceneCmd(VkCommandBuffer a_cmdBuff, const Camera &cam);
+  void CullSceneCmd(VkCommandBuffer a_cmdBuff, uint32_t a_cameraId);
 
   void Cleanup();
 

@@ -19,24 +19,25 @@ layout(set = 1, binding = 0) readonly buffer ModelMatrix
     mat4 modelMatrix[];
 };
 
+layout(set = 1, binding = 1) readonly buffer visible
+{
+    uint visibleInstances[];
+};
+
 layout(location = 0) out VS_OUT
 {
     vec3 wPos;
     vec3 wNorm;
-    vec3 wTangent;
-    vec2 texCoord;
 } vOut;
 
 out gl_PerVertex { vec4 gl_Position; };
 void main(void)
 {
     const vec4 wNorm = vec4(DecodeNormal(floatBitsToInt(vPosNorm.w)),         0.0f);
-    const vec4 wTang = vec4(DecodeNormal(floatBitsToInt(vTexCoordAndTang.z)), 0.0f);
 
-    vOut.wPos     = (modelMatrix[params.offset + gl_InstanceIndex] * vec4(vPosNorm.xyz, 1.0f)).xyz;
-    vOut.wNorm    = normalize(mat3(transpose(inverse(modelMatrix[params.offset + gl_InstanceIndex]))) * wNorm.xyz);
-    vOut.wTangent = normalize(mat3(transpose(inverse(modelMatrix[params.offset + gl_InstanceIndex]))) * wTang.xyz);
-    vOut.texCoord = vTexCoordAndTang.xy;
+    mat4 mModel = modelMatrix[params.offset + visibleInstances[params.offset + gl_InstanceIndex]];
+    vOut.wPos     = (mModel * vec4(vPosNorm.xyz, 1.0f)).xyz;
+    vOut.wNorm    = normalize(mat3(transpose(inverse(mModel))) * wNorm.xyz);
 
     gl_Position   = params.mProjView * vec4(vOut.wPos, 1.0);
 }
