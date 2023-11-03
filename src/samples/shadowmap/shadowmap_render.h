@@ -60,6 +60,8 @@ private:
     VkSemaphore renderingFinished = VK_NULL_HANDLE;
   } m_presentationResources;
 
+  VkEvent shadowMapEvent;
+
   std::vector<VkFence> m_frameFences;
   std::vector<VkCommandBuffer> m_cmdBuffersDrawMain;
 
@@ -112,10 +114,10 @@ private:
   {
     ShadowMapCam() 
     {  
-      cam.pos    = float3(4.0f, 4.0f, 4.0f);
+      cam.pos    = float3(0.0f, 0.0f, 5.0f);
       cam.lookAt = float3(0, 0, 0);
       cam.up     = float3(0, 1, 0);
-  
+
       radius          = 5.0f;
       lightTargetDist = 20.0f;
       usePerspectiveM = true;
@@ -125,7 +127,8 @@ private:
     float  lightTargetDist;  ///!< identify depth range
     Camera cam;              ///!< user control for light to later get light worldViewProj matrix
     bool   usePerspectiveM;  ///!< use perspective matrix if true and ortographics otherwise
-  
+    float  inner_angle;
+    float  outer_angle;
   } m_light;
  
   void DrawFrameSimple(bool draw_gui);

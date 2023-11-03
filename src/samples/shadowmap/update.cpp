@@ -44,6 +44,9 @@ void SimpleShadowmapRender::UpdateUniformBuffer(float a_time)
   m_uniforms.lightMatrix = m_lightMatrix;
   m_uniforms.lightPos    = m_light.cam.pos; //LiteMath::float3(sinf(a_time), 1.0f, cosf(a_time));
   m_uniforms.time        = a_time;
+  m_uniforms.lightDir    = m_light.cam.forward();
+  m_uniforms.cos_inner_angle = cos(m_light.inner_angle * LiteMath::DEG_TO_RAD);
+  m_uniforms.cos_outer_angle = cos(m_light.outer_angle * LiteMath::DEG_TO_RAD);
 
   memcpy(m_uboMappedMem, &m_uniforms, sizeof(m_uniforms));
 }

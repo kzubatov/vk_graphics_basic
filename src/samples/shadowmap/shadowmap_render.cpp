@@ -22,7 +22,7 @@ void SimpleShadowmapRender::AllocateResources()
     .format = vk::Format::eD32Sfloat,
     .imageUsage = vk::ImageUsageFlagBits::eDepthStencilAttachment
   });
-
+  
   shadowMap = m_context->createImage(etna::Image::CreateInfo
   {
     .extent = vk::Extent3D{2048, 2048, 1},
@@ -91,6 +91,14 @@ void SimpleShadowmapRender::PreparePipelines()
       .finalLayout   = VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL 
     }
   );
+
+  VkEventCreateInfo info;
+  info.sType = VK_STRUCTURE_TYPE_EVENT_CREATE_INFO;
+  info.pNext = nullptr;
+  info.flags = 0;
+
+  vkCreateEvent(m_context->getDevice(), &info, nullptr, &shadowMapEvent);
+
   SetupSimplePipeline();
 }
 
@@ -145,6 +153,7 @@ void SimpleShadowmapRender::SetupSimplePipeline()
 void SimpleShadowmapRender::DestroyPipelines()
 {
   m_pFSQuad     = nullptr; // smartptr delete it's resources
+  vkDestroyEvent(m_context->getDevice(), shadowMapEvent, nullptr);
 }
 
 
@@ -208,14 +217,14 @@ void SimpleShadowmapRender::BuildCommandBufferSimple(VkCommandBuffer a_cmdBuff, 
     VkDescriptorSet vkSet = set.getVkSet();
 
     etna::RenderTargetState renderTargets(a_cmdBuff, {m_width, m_height}, {{a_targetImage, a_targetImageView}}, mainViewDepth);
-
+  
     vkCmdBindPipeline(a_cmdBuff, VK_PIPELINE_BIND_POINT_GRAPHICS, m_basicForwardPipeline.getVkPipeline());
     vkCmdBindDescriptorSets(a_cmdBuff, VK_PIPELINE_BIND_POINT_GRAPHICS,
       m_basicForwardPipeline.getVkPipelineLayout(), 0, 1, &vkSet, 0, VK_NULL_HANDLE);
 
     DrawSceneCmd(a_cmdBuff, m_worldViewProj);
   }
-
+  
   if(m_input.drawFSQuad)
   {
     float scaleAndOffset[4] = {0.5f, 0.5f, -0.5f, +0.5f};

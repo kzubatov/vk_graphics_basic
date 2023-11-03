@@ -6,6 +6,8 @@
 SimpleShadowmapRender::SimpleShadowmapRender(uint32_t a_width, uint32_t a_height) : m_width(a_width), m_height(a_height)
 {
   m_uniforms.baseColor = LiteMath::float3(0.9f, 0.92f, 1.0f);
+  m_light.inner_angle = 10.f;
+  m_light.outer_angle = 20.f;
 }
 
 void SimpleShadowmapRender::InitVulkan(const char** a_instanceExtensions, uint32_t a_instanceExtensionsCount, uint32_t)
@@ -14,6 +16,10 @@ void SimpleShadowmapRender::InitVulkan(const char** a_instanceExtensions, uint32
   {
     m_instanceExtensions.push_back(a_instanceExtensions[i]);
   }
+
+  #ifndef NDEBUG
+  m_instanceExtensions.push_back("VK_EXT_debug_report");
+  #endif
 
   SetupDeviceExtensions();
   
