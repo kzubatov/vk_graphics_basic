@@ -60,8 +60,6 @@ private:
     VkSemaphore renderingFinished = VK_NULL_HANDLE;
   } m_presentationResources;
 
-  VkEvent shadowMapEvent;
-
   std::vector<VkFence> m_frameFences;
   std::vector<VkCommandBuffer> m_cmdBuffersDrawMain;
 

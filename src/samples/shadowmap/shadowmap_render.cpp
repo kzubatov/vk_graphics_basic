@@ -92,13 +92,6 @@ void SimpleShadowmapRender::PreparePipelines()
     }
   );
 
-  VkEventCreateInfo info;
-  info.sType = VK_STRUCTURE_TYPE_EVENT_CREATE_INFO;
-  info.pNext = nullptr;
-  info.flags = 0;
-
-  vkCreateEvent(m_context->getDevice(), &info, nullptr, &shadowMapEvent);
-
   SetupSimplePipeline();
 }
 
@@ -153,7 +146,6 @@ void SimpleShadowmapRender::SetupSimplePipeline()
 void SimpleShadowmapRender::DestroyPipelines()
 {
   m_pFSQuad     = nullptr; // smartptr delete it's resources
-  vkDestroyEvent(m_context->getDevice(), shadowMapEvent, nullptr);
 }
 
 
