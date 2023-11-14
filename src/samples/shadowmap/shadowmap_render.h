@@ -47,7 +47,8 @@ private:
   etna::GlobalContext* m_context;
   etna::Image mainViewDepth;
   etna::Image shadowMap;
-  etna::Image varianceShadowMap;
+  etna::Image varianceShadowMap1;
+  etna::Image varianceShadowMap2;
   etna::Sampler defaultSampler;
   etna::Buffer constants;
 
@@ -80,8 +81,12 @@ private:
   etna::GraphicsPipeline m_VSMForwardPipeline {};
   etna::GraphicsPipeline m_shadowPipeline {};
   etna::GraphicsPipeline m_varianceShadowPipeline {};
+  etna::ComputePipeline  m_blurPipeline {};
 
-  bool isVSMEnabled = false;
+  bool isVSMEnabled = true;
+  uint32_t m_compGroupAxisSize = 128;
+  uint32_t shadow_width = 2048;
+  uint32_t shadow_height = 2048;
 
   std::shared_ptr<vk_utils::DescriptorMaker> m_pBindings = nullptr;
   
@@ -141,6 +146,8 @@ private:
   void BuildCommandBufferSimple(VkCommandBuffer a_cmdBuff, VkImage a_targetImage, VkImageView a_targetImageView);
 
   void DrawSceneCmd(VkCommandBuffer a_cmdBuff, const float4x4& a_wvp);
+
+  void blurCmd(VkCommandBuffer a_cmdBuff, etna::Image &readImg, etna::Image &writeImg, uint32_t a_width, uint32_t a_height);
 
   void loadShaders();
 

@@ -1,0 +1,44 @@
+#version 450
+
+#define WORK_GROUP_AXIS_SIZE 128
+const float SIGMA = 2.5;
+
+layout(local_size_x = WORK_GROUP_AXIS_SIZE) in;
+
+layout(push_constant) uniform params {
+  uint width;
+  uint mask;
+} PushConstant;
+
+layout(binding = 0, rgba8) uniform readonly image2D srcImage;
+layout(binding = 1, rgba8) uniform writeonly image2D dstImage;
+
+const int R = int(ceil(3.0 * SIGMA));
+const int WINDOW_LEN = WORK_GROUP_AXIS_SIZE + 2 * R;
+shared vec3 window[WINDOW_LEN];
+
+void main() {
+  int offset = 0;
+  ivec2 globalCoord = ivec2(PushConstant.mask.x == 1 ? gl_GlobalInvocationID.xy : gl_GlobalInvocationID.yx); 
+  ivec2 mask = ivec2(PushConstant.mask, PushConstant.mask ^ 1);
+  ivec2 globalID = ivec2(globalCoord) - mask * R;
+
+  while (offset + gl_LocalInvocationID.x < WINDOW_LEN) {
+    ivec2 uv = globalID + mask * offset;
+    window[offset + gl_LocalInvocationID.x] = all(greaterThanEqual(uv, ivec2(0))) && all(lessThan(uv, ivec2(PushConstant.width))) ? imageLoad(srcImage, uv).rgb : vec3(1);
+    offset += WORK_GROUP_AXIS_SIZE;
+  }
+
+  const float G_DIVISOR = 1.0 / sqrt(2 * 3.1415 * SIGMA * SIGMA);
+  barrier();
+
+  if (gl_GlobalInvocationID.x < PushConstant.width) {
+    vec3 resColor = window[gl_LocalInvocationID.x + R] * G_DIVISOR;
+    for (int i = 1; i <= R; ++i) {
+      resColor += (window[gl_LocalInvocationID.x + R - i] + window[gl_LocalInvocationID.x + R + i]) * 
+        vec3(exp(-(i * i) / (2 * SIGMA * SIGMA)) * G_DIVISOR);
+    }
+
+    imageStore(dstImage, globalCoord, vec4(resColor, 1.0));
+  }
+}
