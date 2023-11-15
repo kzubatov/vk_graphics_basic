@@ -145,7 +145,7 @@ private:
 
   void BuildCommandBufferSimple(VkCommandBuffer a_cmdBuff, VkImage a_targetImage, VkImageView a_targetImageView);
 
-  void DrawSceneCmd(VkCommandBuffer a_cmdBuff, const float4x4& a_wvp);
+  void DrawSceneCmd(VkCommandBuffer a_cmdBuff, const float4x4& a_wvp, VkPipelineLayout pipelineLayout);
 
   void blurCmd(VkCommandBuffer a_cmdBuff, etna::Image &readImg, etna::Image &writeImg, uint32_t a_width, uint32_t a_height);
 
