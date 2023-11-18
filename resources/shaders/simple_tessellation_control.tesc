@@ -18,7 +18,7 @@ layout(push_constant) uniform params_t
   vec3 scaleAndOffset;
   float minHeight;
   float maxHeight;
-  float level;
+  int level;
 } params;
 
 void main()

@@ -23,6 +23,7 @@ void SimpleShadowmapRender::InitVulkan(const char** a_instanceExtensions, uint32
   SetupDeviceExtensions();
 
   m_enabledDeviceFeatures.tessellationShader = VK_TRUE;
+  // m_enabledDeviceFeatures.fillModeNonSolid = VK_TRUE;
   
   etna::initialize(etna::InitParams
     {

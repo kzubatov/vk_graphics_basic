@@ -20,7 +20,7 @@ layout(push_constant) uniform params_t
   vec3 scaleAndOffset;
   float minHeight;
   float maxHeight;
-  float tes_level;
+  int tes_level;
 } params;
 
 layout(binding = 0, set = 0) uniform sampler2D heightMap;
@@ -36,13 +36,16 @@ void main()
 	vec4 p2 = mix(gl_in[2].gl_Position, gl_in[3].gl_Position, gl_TessCoord.x);
 
 	teOut.wPos = mix(p1, p2, gl_TessCoord.y).xyz;
-	float h = texture(heightMap, teOut.texCoord).r;
-	teOut.wPos.y += mix(params.minHeight, params.maxHeight, h);
+	float h = mix(params.minHeight, params.maxHeight, texture(heightMap, teOut.texCoord).r);
+	teOut.wPos.y += h;
 
-	float scale = 100.0;
-	float h1 = texture(heightMap, teOut.texCoord + vec2(1, 0) / 2048).r;
-	float h2 = texture(heightMap, teOut.texCoord + vec2(0, 1) / 2048).r;
-	teOut.wNorm = normalize(vec3((h1 - h) * scale, 1, (h2 - h) * scale));
+	float eps = 0.1;
+	float h1 = mix(params.minHeight, params.maxHeight, texture(heightMap, teOut.texCoord + vec2(eps, 0)).r);
+	float h2 = mix(params.minHeight, params.maxHeight, texture(heightMap, teOut.texCoord - vec2(eps, 0)).r);
+	float h3 = mix(params.minHeight, params.maxHeight, texture(heightMap, teOut.texCoord + vec2(0, eps)).r);
+	float h4 = mix(params.minHeight, params.maxHeight, texture(heightMap, teOut.texCoord - vec2(0, eps)).r);
+
+	teOut.wNorm = normalize(vec3((h2 - h1) / (2 * eps), 1, (h4 - h3) / (2 * eps)));
 
 	gl_Position = params.mProjView * vec4(teOut.wPos, 1.0);
 }

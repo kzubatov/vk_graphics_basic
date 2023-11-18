@@ -127,7 +127,7 @@ private:
     float3 scaleAndOffset = float3(8, -2, 8);
     float minHeight = 0.0;
     float maxHeight = 1.0;
-    float tes_level = 128.0;
+    int tes_level = 64; // my max
   } pushConstQuad;
 
   struct HeightPass
@@ -143,7 +143,7 @@ private:
     } pushConst;
 
     etna::Image texture;
-    vk::Format format = vk::Format::eR16Unorm;
+    vk::Format format = vk::Format::eR32Sfloat;
 
     etna::GraphicsPipeline pipeline {};
   } m_heightPass;

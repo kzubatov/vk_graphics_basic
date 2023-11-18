@@ -151,6 +151,11 @@ void SimpleShadowmapRender::SetupSimplePipeline()
         {
           .patchControlPoints = 4,
         },
+      // .rasterizationConfig = 
+      //   {
+      //     .polygonMode = vk::PolygonMode::eLine,
+      //     .lineWidth = 1.0,
+      //   },
       .fragmentShaderOutput =
         {
           .colorAttachmentFormats = {static_cast<vk::Format>(m_swapchain.GetFormat())},
@@ -168,6 +173,11 @@ void SimpleShadowmapRender::SetupSimplePipeline()
         {
           .patchControlPoints = 4,
         },
+      // .rasterizationConfig = 
+      //   {
+      //     .polygonMode = vk::PolygonMode::eLine,
+      //     .lineWidth = 1.0,
+      //   },
       .fragmentShaderOutput =
         {
           .depthAttachmentFormat = vk::Format::eD16Unorm
