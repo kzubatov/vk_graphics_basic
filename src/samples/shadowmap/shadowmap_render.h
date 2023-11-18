@@ -40,7 +40,7 @@ public:
   Camera GetCurrentCamera() override {return m_cam;}
   void UpdateView();
 
-  void LoadScene(const char *path, bool transpose_inst_matrices) override;
+  void LoadScene(const char *, bool) override;
   void DrawFrame(float a_time, DrawMode a_mode) override;
 
 private:
@@ -62,12 +62,6 @@ private:
 
   std::vector<VkFence> m_frameFences;
   std::vector<VkCommandBuffer> m_cmdBuffersDrawMain;
-
-  struct
-  {
-    float4x4 projView;
-    float4x4 model;
-  } pushConst2M;
 
   float4x4 m_worldViewProj;
   float4x4 m_lightMatrix;    
@@ -93,7 +87,6 @@ private:
   std::vector<const char*> m_deviceExtensions;
   std::vector<const char*> m_instanceExtensions;
 
-  std::shared_ptr<SceneManager>     m_pScnMgr;
   std::shared_ptr<IRenderGUI> m_pGUIRender;
   
   std::shared_ptr<vk_utils::IQuad>               m_pFSQuad;
@@ -112,7 +105,7 @@ private:
   {
     ShadowMapCam() 
     {  
-      cam.pos    = float3(4.0f, 4.0f, 4.0f);
+      cam.pos    = float3(7.0f, 7.0f, 7.0f);
       cam.lookAt = float3(0, 0, 0);
       cam.up     = float3(0, 1, 0);
   
@@ -127,15 +120,37 @@ private:
     bool   usePerspectiveM;  ///!< use perspective matrix if true and ortographics otherwise
   
   } m_light;
- 
+
+  struct 
+  {
+    float4x4 projView;
+    float3 scaleAndOffset = float3(8, -2, 8);
+    float minHeight = 0.0;
+    float maxHeight = 1.0;
+    float tes_level = 128.0;
+  } pushConstQuad;
+
+  struct HeightPass
+  {
+    bool recreate = true;
+    uint32_t width = 2048;
+    uint32_t height = 2048;
+
+    struct
+    {      
+      float seed = float(std::rand()) / RAND_MAX;
+      float scale = 4.0;
+    } pushConst;
+
+    etna::Image texture;
+    vk::Format format = vk::Format::eR16Unorm;
+
+    etna::GraphicsPipeline pipeline {};
+  } m_heightPass;
+
   void DrawFrameSimple(bool draw_gui);
 
-  void CreateInstance();
-  void CreateDevice(uint32_t a_deviceId);
-
   void BuildCommandBufferSimple(VkCommandBuffer a_cmdBuff, VkImage a_targetImage, VkImageView a_targetImageView);
-
-  void DrawSceneCmd(VkCommandBuffer a_cmdBuff, const float4x4& a_wvp, VkPipelineLayout a_pipelineLayout = VK_NULL_HANDLE);
 
   void loadShaders();
 

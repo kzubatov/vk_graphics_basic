@@ -13,6 +13,23 @@ void SimpleShadowmapRender::SetupGUIElements()
 
     ImGui::ColorEdit3("Meshes base color", m_uniforms.baseColor.M, ImGuiColorEditFlags_PickerHueWheel | ImGuiColorEditFlags_NoInputs);
     ImGui::SliderFloat3("Light source position", m_uniforms.lightPos.M, -10.f, 10.f);
+    ImGui::SliderFloat3("Quad xz scale and y offset", pushConstQuad.scaleAndOffset.M, -10.f, 10.f);
+    ImGui::SliderFloat("Tessellation level", &pushConstQuad.tes_level, 1.f, 256.f);
+
+    if (ImGui::SliderFloat("Max height", &pushConstQuad.maxHeight, pushConstQuad.minHeight + 0.05f, 5.f))
+      m_heightPass.recreate = true;
+
+    if (ImGui::SliderFloat("Min height", &pushConstQuad.minHeight, -5.f, pushConstQuad.maxHeight - 0.05f))
+      m_heightPass.recreate = true;
+
+    if (ImGui::SliderFloat("Noise scale", &m_heightPass.pushConst.scale, 1.0f, 64.0f))
+      m_heightPass.recreate = true;
+    
+    if (ImGui::Button("Update noise"))
+    {
+      m_heightPass.recreate = true;
+      m_heightPass.pushConst.seed = float(std::rand()) / RAND_MAX;
+    }    
 
     ImGui::Text("Application average %.3f ms/frame (%.1f FPS)", 1000.0f / ImGui::GetIO().Framerate, ImGui::GetIO().Framerate);
 

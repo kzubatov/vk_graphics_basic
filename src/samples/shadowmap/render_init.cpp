@@ -6,6 +6,7 @@
 SimpleShadowmapRender::SimpleShadowmapRender(uint32_t a_width, uint32_t a_height) : m_width(a_width), m_height(a_height)
 {
   m_uniforms.baseColor = LiteMath::float3(0.9f, 0.92f, 1.0f);
+  std::srand(0);
 }
 
 void SimpleShadowmapRender::InitVulkan(const char** a_instanceExtensions, uint32_t a_instanceExtensionsCount, uint32_t)
@@ -20,6 +21,8 @@ void SimpleShadowmapRender::InitVulkan(const char** a_instanceExtensions, uint32
   #endif
 
   SetupDeviceExtensions();
+
+  m_enabledDeviceFeatures.tessellationShader = VK_TRUE;
   
   etna::initialize(etna::InitParams
     {
@@ -36,10 +39,6 @@ void SimpleShadowmapRender::InitVulkan(const char** a_instanceExtensions, uint32
     });
   
   m_context = &etna::get_context();
-
-  m_pScnMgr = std::make_shared<SceneManager>(
-    m_context->getDevice(), m_context->getPhysicalDevice(),
-    m_context->getQueueFamilyIdx(), m_context->getQueueFamilyIdx(), false);
 }
 
 void SimpleShadowmapRender::SetupDeviceExtensions()
