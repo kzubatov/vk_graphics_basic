@@ -105,16 +105,12 @@ void SimpleShadowmapRender::loadShaders()
   etna::create_program("simple_material",
     {
       VK_GRAPHICS_BASIC_ROOT"/resources/shaders/quad_template.vert.spv",
-      VK_GRAPHICS_BASIC_ROOT"/resources/shaders/simple_tessellation_control.tesc.spv", 
-      VK_GRAPHICS_BASIC_ROOT"/resources/shaders/simple_tessellation_evaluation.tese.spv",
       VK_GRAPHICS_BASIC_ROOT"/resources/shaders/simple_shadow.frag.spv"
     }
   );
   etna::create_program("simple_shadow", 
     {
       VK_GRAPHICS_BASIC_ROOT"/resources/shaders/quad_template.vert.spv", 
-      VK_GRAPHICS_BASIC_ROOT"/resources/shaders/simple_tessellation_control.tesc.spv", 
-      VK_GRAPHICS_BASIC_ROOT"/resources/shaders/simple_tessellation_evaluation.tese.spv"
     }
   );
   etna::create_program("height_map", 
@@ -143,19 +139,6 @@ void SimpleShadowmapRender::SetupSimplePipeline()
   m_basicForwardPipeline = pipelineManager.createGraphicsPipeline("simple_material",
     {
       .vertexShaderInput = {},
-      .inputAssemblyConfig = 
-        {
-          .topology = vk::PrimitiveTopology::ePatchList,
-        },
-      .tessellationConfig =
-        {
-          .patchControlPoints = 4,
-        },
-      // .rasterizationConfig = 
-      //   {
-      //     .polygonMode = vk::PolygonMode::eLine,
-      //     .lineWidth = 1.0,
-      //   },
       .fragmentShaderOutput =
         {
           .colorAttachmentFormats = {static_cast<vk::Format>(m_swapchain.GetFormat())},
@@ -165,19 +148,6 @@ void SimpleShadowmapRender::SetupSimplePipeline()
   m_shadowPipeline = pipelineManager.createGraphicsPipeline("simple_shadow",
     {
       .vertexShaderInput = {},
-      .inputAssemblyConfig = 
-        {
-          .topology = vk::PrimitiveTopology::ePatchList,
-        },
-      .tessellationConfig =
-        {
-          .patchControlPoints = 4,
-        },
-      // .rasterizationConfig = 
-      //   {
-      //     .polygonMode = vk::PolygonMode::eLine,
-      //     .lineWidth = 1.0,
-      //   },
       .fragmentShaderOutput =
         {
           .depthAttachmentFormat = vk::Format::eD16Unorm
@@ -242,10 +212,9 @@ void SimpleShadowmapRender::BuildCommandBufferSimple(VkCommandBuffer a_cmdBuff, 
 
     pushConstQuad.projView = m_lightMatrix;
     vkCmdPushConstants(a_cmdBuff, m_shadowPipeline.getVkPipelineLayout(), 
-      VK_SHADER_STAGE_VERTEX_BIT | VK_SHADER_STAGE_TESSELLATION_CONTROL_BIT | VK_SHADER_STAGE_TESSELLATION_EVALUATION_BIT, 
-      0, sizeof(pushConstQuad), &pushConstQuad);
+      VK_SHADER_STAGE_VERTEX_BIT, 0, sizeof(pushConstQuad), &pushConstQuad);
     
-    vkCmdDraw(a_cmdBuff, 4, 1, 0, 0);
+    vkCmdDraw(a_cmdBuff, 6, pushConstQuad.tes_level * pushConstQuad.tes_level, 0, 0);
   }
 
   //// draw final scene to screen
@@ -274,10 +243,9 @@ void SimpleShadowmapRender::BuildCommandBufferSimple(VkCommandBuffer a_cmdBuff, 
 
     pushConstQuad.projView = m_worldViewProj;
     vkCmdPushConstants(a_cmdBuff, m_basicForwardPipeline.getVkPipelineLayout(), 
-      VK_SHADER_STAGE_VERTEX_BIT | VK_SHADER_STAGE_TESSELLATION_CONTROL_BIT | VK_SHADER_STAGE_TESSELLATION_EVALUATION_BIT, 
-      0, sizeof(pushConstQuad), &pushConstQuad);
+      VK_SHADER_STAGE_VERTEX_BIT, 0, sizeof(pushConstQuad), &pushConstQuad);
 
-    vkCmdDraw(a_cmdBuff, 4, 1, 0, 0);
+    vkCmdDraw(a_cmdBuff, 6, pushConstQuad.tes_level * pushConstQuad.tes_level, 0, 0);
   }
 
   if(m_input.drawFSQuad)
