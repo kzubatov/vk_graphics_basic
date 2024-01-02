@@ -10,10 +10,9 @@ void SimpleShadowmapRender::SetupGUIElements()
   {
 //    ImGui::ShowDemoWindow();
     ImGui::Begin("Simple render settings");
-
     ImGui::ColorEdit3("Meshes base color", m_uniforms.baseColor.M, ImGuiColorEditFlags_PickerHueWheel | ImGuiColorEditFlags_NoInputs);
-    ImGui::SliderFloat3("Light source position", m_uniforms.lightPos.M, -10.f, 10.f);
-    ImGui::SliderFloat3("Quad xz scale and y offset", pushConstQuad.scaleAndOffset.M, -10.f, 10.f);
+    ImGui::SliderFloat3("Light source position", m_light.cam.pos.M, -10.f, 10.f);
+    ImGui::SliderFloat3("Quad xz scale and y offset", pushConstQuad.scaleAndOffset.M, 0.f, 32.f);
     ImGui::SliderInt("Tessellation level", &pushConstQuad.tes_level, 1, 1024);
 
     if (ImGui::SliderFloat("Max height", &pushConstQuad.maxHeight, pushConstQuad.minHeight + 0.05f, 5.f))

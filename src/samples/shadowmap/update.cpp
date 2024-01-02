@@ -20,6 +20,9 @@ void SimpleShadowmapRender::UpdateView()
   auto mProj = projectionMatrix(m_cam.fov, aspect, 0.1f, 1000.0f);
   auto mLookAt = LiteMath::lookAt(m_cam.pos, m_cam.lookAt, m_cam.up);
   auto mWorldViewProj = mProjFix * mProj * mLookAt;
+
+  pushConst2M.projMatInv = LiteMath::inverse4x4(mProjFix * mProj);
+  pushConst2M.viewMatInv = LiteMath::inverse4x4(mLookAt);
   
   m_worldViewProj = mWorldViewProj;
   
@@ -44,6 +47,7 @@ void SimpleShadowmapRender::UpdateUniformBuffer(float a_time)
   m_uniforms.lightMatrix = m_lightMatrix;
   m_uniforms.lightPos    = m_light.cam.pos; //LiteMath::float3(sinf(a_time), 1.0f, cosf(a_time));
   m_uniforms.time        = a_time;
+  m_uniforms.camPos      = to_float4(m_cam.pos, 1.0f);
 
   memcpy(m_uboMappedMem, &m_uniforms, sizeof(m_uniforms));
 }

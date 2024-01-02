@@ -47,6 +47,7 @@ private:
   etna::GlobalContext* m_context;
   etna::Image mainViewDepth;
   etna::Image shadowMap;
+  etna::Image fogMap;
   etna::Sampler defaultSampler;
   etna::Buffer constants;
 
@@ -71,6 +72,8 @@ private:
 
   etna::GraphicsPipeline m_basicForwardPipeline {};
   etna::GraphicsPipeline m_shadowPipeline {};
+  etna::GraphicsPipeline m_postFXPipeline {};
+  etna::GraphicsPipeline m_finalPassPipeline {};
 
   std::shared_ptr<vk_utils::DescriptorMaker> m_pBindings = nullptr;
   
@@ -105,7 +108,7 @@ private:
   {
     ShadowMapCam() 
     {  
-      cam.pos    = float3(7.0f, 7.0f, 7.0f);
+      cam.pos    = float3(0.0f, 20.0f, 0.0f);
       cam.lookAt = float3(0, 0, 0);
       cam.up     = float3(0, 1, 0);
   
@@ -124,11 +127,17 @@ private:
   struct 
   {
     float4x4 projView;
-    float3 scaleAndOffset = float3(8, -2, 8);
-    float minHeight = 0.0;
-    float maxHeight = 1.0;
-    int tes_level = 64; // my max
+    float3 scaleAndOffset = float3(8, 0, 8);
+    float minHeight = -1.0;
+    float maxHeight = 4.0;
+    int tes_level = 256;
   } pushConstQuad;
+
+  struct 
+  {
+    float4x4 projMatInv;
+    float4x4 viewMatInv;
+  } pushConst2M;
 
   struct HeightPass
   {
