@@ -48,7 +48,12 @@ private:
   etna::Image mainViewDepth;
   etna::Image shadowMap;
   etna::Sampler defaultSampler;
+  etna::Sampler linearSampler;
   etna::Buffer constants;
+  etna::Image AAimage;
+  etna::Image TAAHistoryBuffer;
+  etna::Image velocityBuffer;
+  bool m_useStencil;
 
   VkCommandPool    m_commandPool    = VK_NULL_HANDLE;
 
@@ -69,14 +74,39 @@ private:
     float4x4 model;
   } pushConst2M;
 
+  enum AA
+  {
+    NoAA,
+    SSAA,
+    MSAA,
+    TAA
+  } m_AAType = AA::NoAA;
+
+  float2 HaltonSequence[8] = {{0.5f, 1.f / 3.f}, {0.25f, 2.f / 3.f},
+                              {0.75f, 1.f / 9.f}, {0.125f, 4.f / 9.f},
+                              {0.625f, 7.f / 9.f}, {0.375f, 2.f / 9.f},
+                              {0.875, 5.f / 9.f}, {0.0625f, 8.f / 9.f}};
+
+  uint32_t HaltonCounter = 0;
+  etna::Buffer jitter;
+  void *m_jitterMappedMem = nullptr;
+
   float4x4 m_worldViewProj;
-  float4x4 m_lightMatrix;    
+  float4x4 m_lightMatrix;
+
+  float4x4 m_prevWorldViewProj;
+  float4x4 m_prevModelMatrix; // for moving sphere
 
   UniformParams m_uniforms {};
   void* m_uboMappedMem = nullptr;
 
+  bool m_recreateForwardPipelineAndImages = false;
+  bool m_clearHistoryBuffer = false;
+
   etna::GraphicsPipeline m_basicForwardPipeline {};
+  etna::GraphicsPipeline m_resolvePipeline {};
   etna::GraphicsPipeline m_shadowPipeline {};
+  etna::GraphicsPipeline m_velocityPipeline {};
 
   std::shared_ptr<vk_utils::DescriptorMaker> m_pBindings = nullptr;
   
@@ -141,9 +171,10 @@ private:
 
   void SetupSimplePipeline();
   void RecreateSwapChain();
+  void RecreateResolvePassResources();
 
   void UpdateUniformBuffer(float a_time);
-
+  void UpdateJitterBuffer();
 
   void SetupDeviceExtensions();
 

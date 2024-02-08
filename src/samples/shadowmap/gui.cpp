@@ -19,6 +19,23 @@ void SimpleShadowmapRender::SetupGUIElements()
     ImGui::NewLine();
 
     ImGui::TextColored(ImVec4(1.0f, 1.0f, 0.0f, 1.0f),"Press 'B' to recompile and reload shaders");
+
+    auto prevAAType = m_AAType;
+    if (ImGui::Button("No AA"))
+      m_AAType = NoAA;
+
+    if (ImGui::Button("SSAA 4x"))
+      m_AAType = SSAA;
+
+    if (ImGui::Button("MSAA 4x"))
+      m_AAType = MSAA;
+    
+    if (ImGui::Button("TAA"))
+      m_AAType = TAA;
+
+    m_recreateForwardPipelineAndImages = prevAAType != m_AAType;
+    m_clearHistoryBuffer = m_recreateForwardPipelineAndImages && m_AAType == TAA;
+
     ImGui::End();
   }
 

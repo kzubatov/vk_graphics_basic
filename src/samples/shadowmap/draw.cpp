@@ -66,10 +66,20 @@ void SimpleShadowmapRender::DrawFrameSimple(bool draw_gui)
 void SimpleShadowmapRender::DrawFrame(float a_time, DrawMode a_mode)
 {
   UpdateUniformBuffer(a_time);
+
   switch (a_mode)
   {
     case DrawMode::WITH_GUI:
       SetupGUIElements();
+      
+      if (m_AAType == TAA) UpdateJitterBuffer();
+
+      if (m_recreateForwardPipelineAndImages) 
+      {
+        RecreateResolvePassResources();
+        m_recreateForwardPipelineAndImages = false;
+      }
+
       DrawFrameSimple(true);
       break;
     case DrawMode::NO_GUI:
@@ -78,5 +88,4 @@ void SimpleShadowmapRender::DrawFrame(float a_time, DrawMode a_mode)
     default:
       DrawFrameSimple(false);
   }
-
 }

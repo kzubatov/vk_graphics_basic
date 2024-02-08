@@ -21,8 +21,13 @@ layout (location = 0 ) out VS_OUT
     vec3 wNorm;
     vec3 wTangent;
     vec2 texCoord;
-
 } vOut;
+
+#ifdef USE_JITTERING
+layout(binding = 2) uniform Jitter {
+    vec2 offset;
+} jitter;
+#endif
 
 out gl_PerVertex { vec4 gl_Position; };
 void main(void)
@@ -36,4 +41,7 @@ void main(void)
     vOut.texCoord = vTexCoordAndTang.xy;
 
     gl_Position   = params.mProjView * vec4(vOut.wPos, 1.0);
+    #ifdef USE_JITTERING
+        gl_Position.xy += jitter.offset * gl_Position.w; 
+    #endif
 }
