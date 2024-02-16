@@ -50,6 +50,7 @@ struct UniformParams
   shader_vec3  baseColor;
   shader_bool  animateLightColor;
   shader_vec4  camPos;
+  shader_vec4  hillsInfo;
 };
 
 #endif // VK_GRAPHICS_BASIC_COMMON_H

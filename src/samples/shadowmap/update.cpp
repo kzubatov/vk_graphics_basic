@@ -49,6 +49,11 @@ void SimpleShadowmapRender::UpdateUniformBuffer(float a_time)
   m_uniforms.time        = a_time;
   m_uniforms.camPos      = to_float4(m_cam.pos, 1.0f);
 
+  float mid = (pushConstQuad.minHeight + pushConstQuad.maxHeight) * 0.5f;
+  float halfLen = (pushConstQuad.maxHeight - pushConstQuad.minHeight) * 0.5f;
+  m_uniforms.hillsInfo = float4(pushConstQuad.scaleAndOffset.x, 
+    pushConstQuad.scaleAndOffset.y + mid, pushConstQuad.scaleAndOffset.z, halfLen);
+
   memcpy(m_uboMappedMem, &m_uniforms, sizeof(m_uniforms));
 }
 

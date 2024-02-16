@@ -12,7 +12,7 @@ layout(location = 0) in VS_OUT
   vec2 texCoord;
 } surf;
 
-layout(binding = 0, set = 0) uniform AppData
+layout(binding = 0) uniform AppData
 {
   UniformParams Params;
 };
@@ -110,16 +110,16 @@ mat3 rotateY = mat3(cos(Params.time), 0, -sin(Params.time),
 
 float sdfFog(vec3 p)
 {
-  float hillsFog = sdfBox(p + vec3(0, -2, 0), vec3(8, 2, 8));
+  float hillsFog = sdfBox(p - vec3(0, Params.hillsInfo.y, 0), Params.hillsInfo.xwz);
 
   // float tree_base = sdfCylinder(p - vec3(0, 4, 0), 1.5, .75);
-  float tree = sdfCone(p - vec3(0, 20, 0), tan(3.14159 / 8.0), 8.0) - .1;
-  tree = opSmoothUnion(tree, sdfCone(p - vec3(0, 18, 0), tan(3.14159 / 8.0), 10.0) - .1, 1.0);
-  tree = opSmoothUnion(tree, sdfCone(p - vec3(0, 16, 0), tan(3.14159 / 8.0), 14.0) - .1, 1.0);
+  float tree = sdfCone(p - vec3(0, 18 + Params.hillsInfo.y + Params.hillsInfo.w, 0), tan(3.14159 / 8.0), 8.0) - .1;
+  tree = opSmoothUnion(tree, sdfCone(p - vec3(0, 16 + Params.hillsInfo.y + Params.hillsInfo.w, 0), tan(3.14159 / 8.0), 10.0) - .1, 1.0);
+  tree = opSmoothUnion(tree, sdfCone(p - vec3(0, 14 + Params.hillsInfo.y + Params.hillsInfo.w, 0), tan(3.14159 / 8.0), 14.0) - .1, 1.0);
   mat3 rotate36 = mat3(cos(PI * 0.2), -sin(PI * 0.2), 0,
                       sin(PI * 0.2), cos(PI * 0.2), 0,
                       0, 0, 1);
-  float star = sdfStar(rotate36 * rotateY * (p - vec3(0, 20, 0)), 1.5, 2.0, 1.0);
+  float star = sdfStar(rotate36 * rotateY * (p - vec3(0, 18 + Params.hillsInfo.y + Params.hillsInfo.w, 0)), 1.5, 2.0, 1.0);
   return min(min(tree, hillsFog), star);
 }
 

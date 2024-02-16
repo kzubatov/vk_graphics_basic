@@ -210,6 +210,9 @@ void SimpleShadowmapRender::SetupSimplePipeline()
                   | vk::ColorComponentFlagBits::eA,
               }
             },
+          .logicOpEnable = false,
+          .logicOp = vk::LogicOp::eNoOp,
+          .blendConstants = {0, 0, 0, 0},
         },
       .fragmentShaderOutput =
         {
@@ -238,7 +241,7 @@ void SimpleShadowmapRender::BuildCommandBufferSimple(VkCommandBuffer a_cmdBuff, 
   {
     m_heightPass.recreate = false;
     
-    etna::RenderTargetState renderTargets(a_cmdBuff, {m_heightPass.width, m_heightPass.height}, {m_heightPass.texture}, {});
+    etna::RenderTargetState renderTargets(a_cmdBuff, {0, 0, m_heightPass.width, m_heightPass.height}, {m_heightPass.texture}, {});
 
     vkCmdBindPipeline(a_cmdBuff, VK_PIPELINE_BIND_POINT_GRAPHICS, m_heightPass.pipeline.getVkPipeline());
     vkCmdPushConstants(a_cmdBuff, m_heightPass.pipeline.getVkPipelineLayout(), VK_SHADER_STAGE_FRAGMENT_BIT, 0, 
@@ -258,7 +261,7 @@ void SimpleShadowmapRender::BuildCommandBufferSimple(VkCommandBuffer a_cmdBuff, 
 
     VkDescriptorSet vkSet = set.getVkSet();
 
-    etna::RenderTargetState renderTargets(a_cmdBuff, {2048, 2048}, {}, shadowMap);
+    etna::RenderTargetState renderTargets(a_cmdBuff, {0, 0, 2048, 2048}, {}, shadowMap);
 
     vkCmdBindPipeline(a_cmdBuff, VK_PIPELINE_BIND_POINT_GRAPHICS, m_shadowPipeline.getVkPipeline());
 
@@ -290,7 +293,7 @@ void SimpleShadowmapRender::BuildCommandBufferSimple(VkCommandBuffer a_cmdBuff, 
 
     std::array<VkDescriptorSet, 2> vkSet = {set0.getVkSet(), set1.getVkSet()};
 
-    etna::RenderTargetState renderTargets(a_cmdBuff, {m_width, m_height}, {{a_targetImage, a_targetImageView}}, mainViewDepth);
+    etna::RenderTargetState renderTargets(a_cmdBuff, {0, 0, m_width, m_height}, {{a_targetImage, a_targetImageView}}, mainViewDepth);
 
     vkCmdBindPipeline(a_cmdBuff, VK_PIPELINE_BIND_POINT_GRAPHICS, m_basicForwardPipeline.getVkPipeline());
     vkCmdBindDescriptorSets(a_cmdBuff, VK_PIPELINE_BIND_POINT_GRAPHICS,
@@ -316,7 +319,7 @@ void SimpleShadowmapRender::BuildCommandBufferSimple(VkCommandBuffer a_cmdBuff, 
 
     VkDescriptorSet vkSet = set.getVkSet();
 
-    etna::RenderTargetState renderTargets(a_cmdBuff, {m_width / 4, m_height / 4}, {fogMap}, {});
+    etna::RenderTargetState renderTargets(a_cmdBuff, {0, 0, m_width >> 2u, m_height >> 2u}, {fogMap}, {});
 
     vkCmdBindPipeline(a_cmdBuff, VK_PIPELINE_BIND_POINT_GRAPHICS, m_postFXPipeline.getVkPipeline());
 
@@ -340,9 +343,7 @@ void SimpleShadowmapRender::BuildCommandBufferSimple(VkCommandBuffer a_cmdBuff, 
 
     VkDescriptorSet vkSet = set.getVkSet();
 
-    etna::RenderTargetState::AttachmentParams params {a_targetImage, a_targetImageView};
-    params.loadOp = vk::AttachmentLoadOp::eLoad;
-    etna::RenderTargetState renderTargets(a_cmdBuff, {m_width, m_height}, {params}, {});
+    etna::RenderTargetState renderTargets(a_cmdBuff, {0, 0,  m_width, m_height}, {{a_targetImage, a_targetImageView, false}}, {});
 
     vkCmdBindPipeline(a_cmdBuff, VK_PIPELINE_BIND_POINT_GRAPHICS, m_finalPassPipeline.getVkPipeline());
 
