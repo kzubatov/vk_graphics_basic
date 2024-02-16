@@ -269,7 +269,7 @@ void SimpleShadowmapRender::BuildCommandBufferSimple(VkCommandBuffer a_cmdBuff, 
   //// draw scene to shadowmap
   //
   {
-    etna::RenderTargetState renderTargets(a_cmdBuff, {2048, 2048}, {}, shadowMap, {});
+    etna::RenderTargetState renderTargets(a_cmdBuff, {0, 0, 2048, 2048}, {}, shadowMap);
 
     vkCmdBindPipeline(a_cmdBuff, VK_PIPELINE_BIND_POINT_GRAPHICS, m_shadowPipeline.getVkPipeline());
 
@@ -294,15 +294,15 @@ void SimpleShadowmapRender::BuildCommandBufferSimple(VkCommandBuffer a_cmdBuff, 
 
     VkDescriptorSet vkSet = set.getVkSet();
 
-    vk::Extent2D extent2D {m_width, m_height};
+    vk::Rect2D rect {0, 0, m_width, m_height};
     std::vector<etna::RenderTargetState::AttachmentParams> colorAttachments {};
     etna::RenderTargetState::AttachmentParams stencilAttachment {};
 
     switch (m_AAType)
     {
     case AA::SSAA:
-      extent2D.width <<= 1u;
-      extent2D.height <<= 1u;
+      rect.extent.width <<= 1u;
+      rect.extent.height <<= 1u;
     case AA::MSAA:
       colorAttachments.push_back(AAimage);
       break;
@@ -315,7 +315,7 @@ void SimpleShadowmapRender::BuildCommandBufferSimple(VkCommandBuffer a_cmdBuff, 
       break;
     }
 
-    etna::RenderTargetState renderTargets(a_cmdBuff, extent2D, colorAttachments, {mainViewDepth}, stencilAttachment);
+    etna::RenderTargetState renderTargets(a_cmdBuff, rect, colorAttachments, {mainViewDepth}, stencilAttachment);
     
     vkCmdBindPipeline(a_cmdBuff, VK_PIPELINE_BIND_POINT_GRAPHICS, m_basicForwardPipeline.getVkPipeline());
     vkCmdBindDescriptorSets(a_cmdBuff, VK_PIPELINE_BIND_POINT_GRAPHICS,
@@ -370,7 +370,7 @@ void SimpleShadowmapRender::BuildCommandBufferSimple(VkCommandBuffer a_cmdBuff, 
 
       VkDescriptorSet vkSet = set.getVkSet();
 
-      etna::RenderTargetState renderTargets(a_cmdBuff, {m_width, m_height}, {{a_targetImage, a_targetImageView}}, {}, {});
+      etna::RenderTargetState renderTargets(a_cmdBuff, {0, 0, m_width, m_height}, {{a_targetImage, a_targetImageView}}, {});
       
       vkCmdBindPipeline(a_cmdBuff, VK_PIPELINE_BIND_POINT_GRAPHICS, m_resolvePipeline.getVkPipeline());
       vkCmdBindDescriptorSets(a_cmdBuff, VK_PIPELINE_BIND_POINT_GRAPHICS,
@@ -386,7 +386,7 @@ void SimpleShadowmapRender::BuildCommandBufferSimple(VkCommandBuffer a_cmdBuff, 
     {
       etna::RenderTargetState::AttachmentParams stencilAttachment {mainViewDepth};
       stencilAttachment.loadOp = vk::AttachmentLoadOp::eLoad;
-      etna::RenderTargetState renderTargets(a_cmdBuff, {m_width, m_height}, {velocityBuffer}, {}, stencilAttachment);
+      etna::RenderTargetState renderTargets(a_cmdBuff, {0, 0, m_width, m_height}, {velocityBuffer}, {}, stencilAttachment);
       
       vkCmdBindPipeline(a_cmdBuff, VK_PIPELINE_BIND_POINT_GRAPHICS, m_velocityPipeline.getVkPipeline());
 
@@ -427,7 +427,7 @@ void SimpleShadowmapRender::BuildCommandBufferSimple(VkCommandBuffer a_cmdBuff, 
 
       VkDescriptorSet vkSet = set.getVkSet();
 
-      etna::RenderTargetState renderTargets(a_cmdBuff, {m_width, m_height}, {{a_targetImage, a_targetImageView}}, {}, {});
+      etna::RenderTargetState renderTargets(a_cmdBuff, {0, 0, m_width, m_height}, {{a_targetImage, a_targetImageView}}, {});
       
       vkCmdBindPipeline(a_cmdBuff, VK_PIPELINE_BIND_POINT_GRAPHICS, m_resolvePipeline.getVkPipeline());
       vkCmdBindDescriptorSets(a_cmdBuff, VK_PIPELINE_BIND_POINT_GRAPHICS,
