@@ -327,60 +327,55 @@ void SimpleShadowmapRender::BuildCommandBufferSimple(VkCommandBuffer a_cmdBuff, 
 
   //// resolve pass for AA
   //
-  switch (m_AAType)
+  if (m_AAType == AA::MSAA) 
   {
-  case AA::MSAA: 
+    etna::set_state(a_cmdBuff, AAimage.get(), vk::PipelineStageFlagBits2::eResolve,
+      vk::AccessFlagBits2::eTransferRead, vk::ImageLayout::eTransferSrcOptimal,
+      vk::ImageAspectFlagBits::eColor);
+
+    etna::set_state(a_cmdBuff, a_targetImage, vk::PipelineStageFlagBits2::eResolve,
+      vk::AccessFlagBits2::eTransferWrite, vk::ImageLayout::eTransferDstOptimal,
+      vk::ImageAspectFlagBits::eColor);
+      
+    etna::flush_barriers(a_cmdBuff);
+
+    VkImageResolve imageResolve = {
+      .srcSubresource = {VK_IMAGE_ASPECT_COLOR_BIT, 0, 0, 1},
+      .srcOffset = {0, 0, 0},
+      .dstSubresource = {VK_IMAGE_ASPECT_COLOR_BIT, 0, 0, 1},
+      .dstOffset = {0, 0, 0},
+      .extent = {m_width, m_height, 1},
+    };
+
+    vkCmdResolveImage(a_cmdBuff, AAimage.get(), VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL, 
+      a_targetImage, VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL, 1, &imageResolve);
+    
+    etna::set_state(a_cmdBuff, a_targetImage, vk::PipelineStageFlagBits2::eColorAttachmentOutput,
+      vk::AccessFlagBits2(), vk::ImageLayout::eColorAttachmentOptimal, vk::ImageAspectFlagBits::eColor);
+    
+    etna::flush_barriers(a_cmdBuff);
+  }
+  else if (m_AAType == AA::SSAA)
+  {
+    auto resolveInfo = etna::get_shader_program("resolve_pass");
+
+    auto set = etna::create_descriptor_set(resolveInfo.getDescriptorLayoutId(0), a_cmdBuff,
     {
-      etna::set_state(a_cmdBuff, AAimage.get(), vk::PipelineStageFlagBits2::eResolve,
-        vk::AccessFlagBits2::eTransferRead, vk::ImageLayout::eTransferSrcOptimal,
-        vk::ImageAspectFlagBits::eColor);
+      etna::Binding {0, AAimage.genBinding(linearSampler.get(), vk::ImageLayout::eShaderReadOnlyOptimal)}
+    });
 
-      etna::set_state(a_cmdBuff, a_targetImage, vk::PipelineStageFlagBits2::eResolve,
-        vk::AccessFlagBits2::eTransferWrite, vk::ImageLayout::eTransferDstOptimal,
-        vk::ImageAspectFlagBits::eColor);
-        
-      etna::flush_barriers(a_cmdBuff);
-  
-      VkImageResolve imageResolve = {
-        .srcSubresource = {VK_IMAGE_ASPECT_COLOR_BIT, 0, 0, 1},
-        .srcOffset = {0, 0, 0},
-        .dstSubresource = {VK_IMAGE_ASPECT_COLOR_BIT, 0, 0, 1},
-        .dstOffset = {0, 0, 0},
-        .extent = {m_width, m_height, 1},
-      };
+    VkDescriptorSet vkSet = set.getVkSet();
 
-      vkCmdResolveImage(a_cmdBuff, AAimage.get(), VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL, 
-        a_targetImage, VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL, 1, &imageResolve);
-      
-      etna::set_state(a_cmdBuff, a_targetImage, vk::PipelineStageFlagBits2::eColorAttachmentOutput,
-        vk::AccessFlagBits2(), vk::ImageLayout::eColorAttachmentOptimal, vk::ImageAspectFlagBits::eColor);
-      
-      etna::flush_barriers(a_cmdBuff);
-    }
-    break;
+    etna::RenderTargetState renderTargets(a_cmdBuff, {0, 0, m_width, m_height}, {{a_targetImage, a_targetImageView}}, {});
+    
+    vkCmdBindPipeline(a_cmdBuff, VK_PIPELINE_BIND_POINT_GRAPHICS, m_resolvePipeline.getVkPipeline());
+    vkCmdBindDescriptorSets(a_cmdBuff, VK_PIPELINE_BIND_POINT_GRAPHICS,
+      m_resolvePipeline.getVkPipelineLayout(), 0, 1, &vkSet, 0, VK_NULL_HANDLE);
 
-  case AA::SSAA:
-    {
-      auto resolveInfo = etna::get_shader_program("resolve_pass");
-
-      auto set = etna::create_descriptor_set(resolveInfo.getDescriptorLayoutId(0), a_cmdBuff,
-      {
-        etna::Binding {0, AAimage.genBinding(linearSampler.get(), vk::ImageLayout::eShaderReadOnlyOptimal)}
-      });
-
-      VkDescriptorSet vkSet = set.getVkSet();
-
-      etna::RenderTargetState renderTargets(a_cmdBuff, {0, 0, m_width, m_height}, {{a_targetImage, a_targetImageView}}, {});
-      
-      vkCmdBindPipeline(a_cmdBuff, VK_PIPELINE_BIND_POINT_GRAPHICS, m_resolvePipeline.getVkPipeline());
-      vkCmdBindDescriptorSets(a_cmdBuff, VK_PIPELINE_BIND_POINT_GRAPHICS,
-        m_resolvePipeline.getVkPipelineLayout(), 0, 1, &vkSet, 0, VK_NULL_HANDLE);
-
-      vkCmdDraw(a_cmdBuff, 3, 1, 0, 0);
-    }
-    break;
-
-  case AA::TAA:
+    vkCmdDraw(a_cmdBuff, 3, 1, 0, 0);
+  }
+  else if (m_AAType == AA::TAA)
+  {
     //// velocity pass
     //
     {
@@ -479,13 +474,8 @@ void SimpleShadowmapRender::BuildCommandBufferSimple(VkCommandBuffer a_cmdBuff, 
 
       etna::flush_barriers(a_cmdBuff);
     }
-
-    break;
-
-  default:
-    break;
   }
-
+  
   if(m_input.drawFSQuad)
   {
     float scaleAndOffset[4] = {0.5f, 0.5f, -0.5f, +0.5f};
