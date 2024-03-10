@@ -52,7 +52,7 @@ void SimpleShadowmapRender::AllocateResources()
   {
     .size = sizeof(float2),
     .bufferUsage = vk::BufferUsageFlagBits::eUniformBuffer,
-    .memoryUsage = VMA_MEMORY_USAGE_CPU_COPY,
+    .memoryUsage = VMA_MEMORY_USAGE_CPU_ONLY,
     .name = "jitter",
   });
 
@@ -269,7 +269,7 @@ void SimpleShadowmapRender::BuildCommandBufferSimple(VkCommandBuffer a_cmdBuff, 
   //// draw scene to shadowmap
   //
   {
-    etna::RenderTargetState renderTargets(a_cmdBuff, {0, 0, 2048, 2048}, {}, shadowMap);
+    etna::RenderTargetState renderTargets(a_cmdBuff, {0, 0, 2048, 2048}, {}, {.image = shadowMap.get(), .view = shadowMap.getView({})});
 
     vkCmdBindPipeline(a_cmdBuff, VK_PIPELINE_BIND_POINT_GRAPHICS, m_shadowPipeline.getVkPipeline());
 
@@ -303,20 +303,30 @@ void SimpleShadowmapRender::BuildCommandBufferSimple(VkCommandBuffer a_cmdBuff, 
     case AA::SSAA:
       rect.extent.width <<= 1u;
       rect.extent.height <<= 1u;
+      colorAttachments.push_back({.image = AAimage.get(), .view = AAimage.getView({})});
+      break;
     case AA::MSAA:
-      colorAttachments.push_back(AAimage);
+      colorAttachments.push_back({
+        .image = AAimage.get(),
+        .view = AAimage.getView({}),
+        .storeOp = vk::AttachmentStoreOp::eDontCare,
+        .resolveImage = a_targetImage,
+        .resolveImageView = a_targetImageView,
+        .resolveMode = vk::ResolveModeFlagBits::eAverage
+      });
       break;
     case AA::TAA:
-      stencilAttachment = {mainViewDepth};
-      colorAttachments.push_back(AAimage);
+      stencilAttachment = {.image = mainViewDepth.get(), .view = mainViewDepth.getView({})};
+      colorAttachments.push_back({.image = AAimage.get(), .view = AAimage.getView({})});
       break;
     default:
-      colorAttachments.push_back({a_targetImage, a_targetImageView});
+      colorAttachments.push_back({.image = a_targetImage, .view = a_targetImageView});
       break;
     }
 
-    etna::RenderTargetState renderTargets(a_cmdBuff, rect, colorAttachments, {mainViewDepth}, stencilAttachment);
-    
+    etna::RenderTargetState renderTargets(a_cmdBuff, rect, colorAttachments,
+      {.image = mainViewDepth.get(), .view = mainViewDepth.getView({})}, stencilAttachment);
+
     vkCmdBindPipeline(a_cmdBuff, VK_PIPELINE_BIND_POINT_GRAPHICS, m_basicForwardPipeline.getVkPipeline());
     vkCmdBindDescriptorSets(a_cmdBuff, VK_PIPELINE_BIND_POINT_GRAPHICS,
       m_basicForwardPipeline.getVkPipelineLayout(), 0, 1, &vkSet, 0, VK_NULL_HANDLE);
@@ -329,29 +339,9 @@ void SimpleShadowmapRender::BuildCommandBufferSimple(VkCommandBuffer a_cmdBuff, 
   //
   if (m_AAType == AA::MSAA) 
   {
-    etna::set_state(a_cmdBuff, AAimage.get(), vk::PipelineStageFlagBits2::eResolve,
-      vk::AccessFlagBits2::eTransferRead, vk::ImageLayout::eTransferSrcOptimal,
-      vk::ImageAspectFlagBits::eColor);
-
-    etna::set_state(a_cmdBuff, a_targetImage, vk::PipelineStageFlagBits2::eResolve,
-      vk::AccessFlagBits2::eTransferWrite, vk::ImageLayout::eTransferDstOptimal,
-      vk::ImageAspectFlagBits::eColor);
-      
-    etna::flush_barriers(a_cmdBuff);
-
-    VkImageResolve imageResolve = {
-      .srcSubresource = {VK_IMAGE_ASPECT_COLOR_BIT, 0, 0, 1},
-      .srcOffset = {0, 0, 0},
-      .dstSubresource = {VK_IMAGE_ASPECT_COLOR_BIT, 0, 0, 1},
-      .dstOffset = {0, 0, 0},
-      .extent = {m_width, m_height, 1},
-    };
-
-    vkCmdResolveImage(a_cmdBuff, AAimage.get(), VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL, 
-      a_targetImage, VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL, 1, &imageResolve);
-    
     etna::set_state(a_cmdBuff, a_targetImage, vk::PipelineStageFlagBits2::eColorAttachmentOutput,
-      vk::AccessFlagBits2(), vk::ImageLayout::eColorAttachmentOptimal, vk::ImageAspectFlagBits::eColor);
+      vk::AccessFlagBits2::eColorAttachmentWrite, vk::ImageLayout::eColorAttachmentOptimal,
+      vk::ImageAspectFlagBits::eColor);
     
     etna::flush_barriers(a_cmdBuff);
   }
@@ -366,7 +356,8 @@ void SimpleShadowmapRender::BuildCommandBufferSimple(VkCommandBuffer a_cmdBuff, 
 
     VkDescriptorSet vkSet = set.getVkSet();
 
-    etna::RenderTargetState renderTargets(a_cmdBuff, {0, 0, m_width, m_height}, {{a_targetImage, a_targetImageView}}, {});
+    etna::RenderTargetState renderTargets(a_cmdBuff, {0, 0, m_width, m_height},
+      {{.image = a_targetImage, .view = a_targetImageView}}, {});
     
     vkCmdBindPipeline(a_cmdBuff, VK_PIPELINE_BIND_POINT_GRAPHICS, m_resolvePipeline.getVkPipeline());
     vkCmdBindDescriptorSets(a_cmdBuff, VK_PIPELINE_BIND_POINT_GRAPHICS,
@@ -379,9 +370,14 @@ void SimpleShadowmapRender::BuildCommandBufferSimple(VkCommandBuffer a_cmdBuff, 
     //// velocity pass
     //
     {
-      etna::RenderTargetState::AttachmentParams stencilAttachment {mainViewDepth};
-      stencilAttachment.loadOp = vk::AttachmentLoadOp::eLoad;
-      etna::RenderTargetState renderTargets(a_cmdBuff, {0, 0, m_width, m_height}, {velocityBuffer}, {}, stencilAttachment);
+      etna::RenderTargetState::AttachmentParams stencilAttachment = {
+        .image = mainViewDepth.get(),
+        .view = mainViewDepth.getView({}),
+        .loadOp = vk::AttachmentLoadOp::eLoad
+      };
+
+      etna::RenderTargetState renderTargets(a_cmdBuff, {0, 0, m_width, m_height},
+        {{.image = velocityBuffer.get(), .view = velocityBuffer.getView({})}}, {}, stencilAttachment);
       
       vkCmdBindPipeline(a_cmdBuff, VK_PIPELINE_BIND_POINT_GRAPHICS, m_velocityPipeline.getVkPipeline());
 
@@ -422,7 +418,7 @@ void SimpleShadowmapRender::BuildCommandBufferSimple(VkCommandBuffer a_cmdBuff, 
 
       VkDescriptorSet vkSet = set.getVkSet();
 
-      etna::RenderTargetState renderTargets(a_cmdBuff, {0, 0, m_width, m_height}, {{a_targetImage, a_targetImageView}}, {});
+      etna::RenderTargetState renderTargets(a_cmdBuff, {0, 0, m_width, m_height}, {{.image = a_targetImage, .view = a_targetImageView}}, {});
       
       vkCmdBindPipeline(a_cmdBuff, VK_PIPELINE_BIND_POINT_GRAPHICS, m_resolvePipeline.getVkPipeline());
       vkCmdBindDescriptorSets(a_cmdBuff, VK_PIPELINE_BIND_POINT_GRAPHICS,
