@@ -5,6 +5,9 @@
 #include "common.h"
 
 layout(location = 0) out vec4 out_fragColor;
+#ifdef TAA_PASS
+layout(location = 1) out vec2 out_velocity;
+#endif
 
 layout (location = 0 ) in VS_OUT
 {
@@ -12,6 +15,10 @@ layout (location = 0 ) in VS_OUT
   vec3 wNorm;
   vec3 wTangent;
   vec2 texCoord;
+#ifdef TAA_PASS
+  vec4 clipPosPrev;
+  vec4 clipPosCur;
+#endif
 } surf;
 
 layout(binding = 0, set = 0) uniform AppData
@@ -21,8 +28,13 @@ layout(binding = 0, set = 0) uniform AppData
 
 layout (binding = 1) uniform sampler2D shadowMap;
 
+
 void main()
 {
+  #ifdef TAA_PASS
+    out_velocity = (surf.clipPosPrev.xy / surf.clipPosPrev.w - surf.clipPosCur.xy / surf.clipPosCur.w) * 0.5;
+  #endif
+  
   const vec4 posLightClipSpace = Params.lightMatrix*vec4(surf.wPos, 1.0f); // 
   const vec3 posLightSpaceNDC  = posLightClipSpace.xyz/posLightClipSpace.w;    // for orto matrix, we don't need perspective division, you can remove it if you want; this is general case;
   const vec2 shadowTexCoord    = posLightSpaceNDC.xy*0.5f + vec2(0.5f, 0.5f);  // just shift coords from [-1,1] to [0,1]               

@@ -4,6 +4,7 @@
 #include <vk_pipeline.h>
 #include <vk_buffers.h>
 #include <iostream>
+#include <numeric>
 
 #include <etna/GlobalContext.hpp>
 #include <etna/Etna.hpp>
@@ -48,15 +49,15 @@ void SimpleShadowmapRender::AllocateResources()
 
   m_uboMappedMem = constants.map();
 
-  jitter = m_context->createBuffer(etna::Buffer::CreateInfo
+  taa_info_buffer = m_context->createBuffer(etna::Buffer::CreateInfo
   {
-    .size = sizeof(float2),
+    .size = sizeof(taa_info),
     .bufferUsage = vk::BufferUsageFlagBits::eUniformBuffer,
     .memoryUsage = VMA_MEMORY_USAGE_CPU_ONLY,
-    .name = "jitter",
+    .name = "taa_info",
   });
 
-  m_jitterMappedMem = jitter.map();
+  m_taaInfoMappedMem = taa_info_buffer.map();
 }
 
 void SimpleShadowmapRender::LoadScene(const char* path, bool transpose_inst_matrices)
@@ -119,9 +120,9 @@ void SimpleShadowmapRender::loadShaders()
     VK_GRAPHICS_BASIC_ROOT"/resources/shaders/simple.vert.spv"
   });
 
-  etna::create_program("simple_material_TAA", {
-    VK_GRAPHICS_BASIC_ROOT"/resources/shaders/simple_shadow.frag.spv", 
-    VK_GRAPHICS_BASIC_ROOT"/resources/shaders/simple_jitter.vert.spv"
+  etna::create_program("simple_material_TAA_dynamic", {
+    VK_GRAPHICS_BASIC_ROOT"/resources/shaders/simple_shadow_taa.frag.spv", 
+    VK_GRAPHICS_BASIC_ROOT"/resources/shaders/simple_taa.vert.spv"
   });
 
   etna::create_program("simple_shadow", {VK_GRAPHICS_BASIC_ROOT"/resources/shaders/simple.vert.spv"});
@@ -129,11 +130,6 @@ void SimpleShadowmapRender::loadShaders()
   etna::create_program("resolve_pass", {
     VK_GRAPHICS_BASIC_ROOT"/resources/shaders/quad3.vert.spv",
     VK_GRAPHICS_BASIC_ROOT"/resources/shaders/quad.frag.spv",
-  });
-
-  etna::create_program("velocity_pass", {
-    VK_GRAPHICS_BASIC_ROOT"/resources/shaders/velocity.vert.spv",
-    VK_GRAPHICS_BASIC_ROOT"/resources/shaders/velocity.frag.spv",
   });
 
   etna::create_program("resolve_pass_TAA", {
@@ -182,24 +178,6 @@ void SimpleShadowmapRender::SetupSimplePipeline()
           .depthAttachmentFormat = vk::Format::eD16Unorm
         },
     });
-
-  m_velocityPipeline = pipelineManager.createGraphicsPipeline("velocity_pass",
-  {
-    .vertexShaderInput = sceneVertexInputDesc,
-    .depthConfig =
-    {
-      .depthTestEnable = false,
-      .depthWriteEnable = false,
-      .stencilTestEnable = true,
-      .front = {vk::StencilOp::eKeep, vk::StencilOp::eKeep, vk::StencilOp::eKeep, vk::CompareOp::eEqual, 1, 1, 1},
-      .back = {vk::StencilOp::eKeep, vk::StencilOp::eKeep, vk::StencilOp::eKeep, vk::CompareOp::eEqual, 1, 1, 1},
-    },
-    .fragmentShaderOutput =
-      {
-        .colorAttachmentFormats = {vk::Format::eR16G16Sfloat},
-        .stencilAttachmentFormat = vk::Format::eD32SfloatS8Uint,
-      },
-  });
 }
 
 void SimpleShadowmapRender::DestroyPipelines()
@@ -211,7 +189,8 @@ void SimpleShadowmapRender::DestroyPipelines()
 
 /// COMMAND BUFFER FILLING
 
-void SimpleShadowmapRender::DrawSceneCmd(VkCommandBuffer a_cmdBuff, const float4x4& a_wvp, VkPipelineLayout a_pipelineLayout)
+void SimpleShadowmapRender::DrawSceneCmd(VkCommandBuffer a_cmdBuff, 
+  const float4x4& a_wvp, VkPipelineLayout a_pipelineLayout, bool a_ignoreDynamic)
 {
   VkShaderStageFlags stageFlags = (VK_SHADER_STAGE_VERTEX_BIT);
 
@@ -223,16 +202,24 @@ void SimpleShadowmapRender::DrawSceneCmd(VkCommandBuffer a_cmdBuff, const float4
   vkCmdBindIndexBuffer(a_cmdBuff, indexBuf, 0, VK_INDEX_TYPE_UINT32);
 
   pushConst2M.projView = a_wvp;
-  for (uint32_t i = 0; i < m_pScnMgr->InstancesNum(); ++i)
-  {
-    if (m_useStencil)
-      vkCmdSetStencilReference(a_cmdBuff, VK_STENCIL_FACE_FRONT_AND_BACK, i == 5);
 
+  std::vector<uint32_t> static_taa_instances(m_pScnMgr->InstancesNum()); // or all for non-taa method 
+  std::iota(static_taa_instances.begin(), static_taa_instances.end(), 0u);
+
+  if (a_ignoreDynamic)
+  {
+    static_taa_instances.erase(static_taa_instances.begin() + sphere_index);
+  }
+
+  for (const uint32_t &i : static_taa_instances)
+  {
     auto inst         = m_pScnMgr->GetInstanceInfo(i);
     
-    pushConst2M.model = m_pScnMgr->GetInstanceMatrix(i);
-    if (i == 5)
-      pushConst2M.model = translate4x4(float3(0.f, 0.2f * sinf(4.0f * m_uniforms.time), 0.f)) * pushConst2M.model; 
+
+    if (i != sphere_index)
+      pushConst2M.model = m_pScnMgr->GetInstanceMatrix(i);
+    else
+      pushConst2M.model = translate4x4(float3(0.f, 0.2f * sinf(4.0f * m_uniforms.time), 0.f)) * m_pScnMgr->GetInstanceMatrix(sphere_index);
 
     vkCmdPushConstants(a_cmdBuff, a_pipelineLayout,
       stageFlags, 0, sizeof(pushConst2M), &pushConst2M);
@@ -273,30 +260,25 @@ void SimpleShadowmapRender::BuildCommandBufferSimple(VkCommandBuffer a_cmdBuff, 
 
     vkCmdBindPipeline(a_cmdBuff, VK_PIPELINE_BIND_POINT_GRAPHICS, m_shadowPipeline.getVkPipeline());
 
-    m_useStencil = false;
     DrawSceneCmd(a_cmdBuff, m_lightMatrix, m_shadowPipeline.getVkPipelineLayout());
   }
 
   //// draw final scene to screen
   //
   {
-    auto simpleMaterialInfo = etna::get_shader_program(m_AAType == AA::TAA ? "simple_material_TAA" : "simple_material");
-
-    std::vector<etna::Binding> bindings = 
-    {
-      etna::Binding {0, constants.genBinding()},
-      etna::Binding {1, shadowMap.genBinding(defaultSampler.get(), vk::ImageLayout::eShaderReadOnlyOptimal)}
-    };
-
-    if (m_AAType == AA::TAA) bindings.push_back({2, jitter.genBinding()});
-
-    auto set = etna::create_descriptor_set(simpleMaterialInfo.getDescriptorLayoutId(0), a_cmdBuff, bindings);
+    auto simpleMaterialInfo = etna::get_shader_program("simple_material");
+    
+    auto set = etna::create_descriptor_set(simpleMaterialInfo.getDescriptorLayoutId(0), a_cmdBuff,
+      {
+        etna::Binding {0, constants.genBinding()},
+        etna::Binding {1, shadowMap.genBinding(defaultSampler.get(), vk::ImageLayout::eShaderReadOnlyOptimal)}
+      }
+    );
 
     VkDescriptorSet vkSet = set.getVkSet();
 
     vk::Rect2D rect {0, 0, m_width, m_height};
     std::vector<etna::RenderTargetState::AttachmentParams> colorAttachments {};
-    etna::RenderTargetState::AttachmentParams stencilAttachment {};
 
     switch (m_AAType)
     {
@@ -316,7 +298,6 @@ void SimpleShadowmapRender::BuildCommandBufferSimple(VkCommandBuffer a_cmdBuff, 
       });
       break;
     case AA::TAA:
-      stencilAttachment = {.image = mainViewDepth.get(), .view = mainViewDepth.getView({})};
       colorAttachments.push_back({.image = AAimage.get(), .view = AAimage.getView({})});
       break;
     default:
@@ -325,14 +306,13 @@ void SimpleShadowmapRender::BuildCommandBufferSimple(VkCommandBuffer a_cmdBuff, 
     }
 
     etna::RenderTargetState renderTargets(a_cmdBuff, rect, colorAttachments,
-      {.image = mainViewDepth.get(), .view = mainViewDepth.getView({})}, stencilAttachment);
+      {.image = mainViewDepth.get(), .view = mainViewDepth.getView({}), .imageAspect = mainViewDepth.getAspectMaskByFormat()});
 
     vkCmdBindPipeline(a_cmdBuff, VK_PIPELINE_BIND_POINT_GRAPHICS, m_basicForwardPipeline.getVkPipeline());
     vkCmdBindDescriptorSets(a_cmdBuff, VK_PIPELINE_BIND_POINT_GRAPHICS,
       m_basicForwardPipeline.getVkPipelineLayout(), 0, 1, &vkSet, 0, VK_NULL_HANDLE);
 
-    m_useStencil = m_AAType == AA::TAA;
-    DrawSceneCmd(a_cmdBuff, m_worldViewProj, m_basicForwardPipeline.getVkPipelineLayout());
+    DrawSceneCmd(a_cmdBuff, m_worldViewProj, m_basicForwardPipeline.getVkPipelineLayout(), m_AAType == TAA);
   }
 
   //// resolve pass for AA
@@ -350,9 +330,10 @@ void SimpleShadowmapRender::BuildCommandBufferSimple(VkCommandBuffer a_cmdBuff, 
     auto resolveInfo = etna::get_shader_program("resolve_pass");
 
     auto set = etna::create_descriptor_set(resolveInfo.getDescriptorLayoutId(0), a_cmdBuff,
-    {
-      etna::Binding {0, AAimage.genBinding(linearSampler.get(), vk::ImageLayout::eShaderReadOnlyOptimal)}
-    });
+      {
+        etna::Binding {0, AAimage.genBinding(linearSampler.get(), vk::ImageLayout::eShaderReadOnlyOptimal)}
+      }
+    );
 
     VkDescriptorSet vkSet = set.getVkSet();
 
@@ -367,20 +348,38 @@ void SimpleShadowmapRender::BuildCommandBufferSimple(VkCommandBuffer a_cmdBuff, 
   }
   else if (m_AAType == AA::TAA)
   {
-    //// velocity pass
+    //// dynamic pass
     //
     {
-      etna::RenderTargetState::AttachmentParams stencilAttachment = {
-        .image = mainViewDepth.get(),
-        .view = mainViewDepth.getView({}),
-        .loadOp = vk::AttachmentLoadOp::eLoad
-      };
+      auto dynamicPassInfo = etna::get_shader_program("simple_material_TAA_dynamic");
 
-      etna::RenderTargetState renderTargets(a_cmdBuff, {0, 0, m_width, m_height},
-        {{.image = velocityBuffer.get(), .view = velocityBuffer.getView({})}}, {}, stencilAttachment);
+      auto set = etna::create_descriptor_set(dynamicPassInfo.getDescriptorLayoutId(0), a_cmdBuff,
+        {
+          etna::Binding {0, constants.genBinding()},
+          etna::Binding {1, shadowMap.genBinding(defaultSampler.get(), vk::ImageLayout::eShaderReadOnlyOptimal)},
+          etna::Binding {2, taa_info_buffer.genBinding()},
+        }
+      );
       
-      vkCmdBindPipeline(a_cmdBuff, VK_PIPELINE_BIND_POINT_GRAPHICS, m_velocityPipeline.getVkPipeline());
+      VkDescriptorSet vkSet = set.getVkSet();
 
+      etna::RenderTargetState renderTargets(a_cmdBuff, {0, 0, m_width, m_height}, 
+        {
+          {.image = AAimage.get(), .view = AAimage.getView({}), .loadOp = vk::AttachmentLoadOp::eLoad},
+          {.image = velocityBuffer.get(), .view = velocityBuffer.getView({})},
+        }, 
+        {
+          .image = mainViewDepth.get(), .view = mainViewDepth.getView({}), .loadOp = vk::AttachmentLoadOp::eLoad,
+        },
+        {
+          .image = mainViewDepth.get(), .view = mainViewDepth.getView({}), .loadOp = vk::AttachmentLoadOp::eLoad,
+        }
+      );
+
+      vkCmdBindPipeline(a_cmdBuff, VK_PIPELINE_BIND_POINT_GRAPHICS, m_dynamicForwardPipeline.getVkPipeline());
+      vkCmdBindDescriptorSets(a_cmdBuff, VK_PIPELINE_BIND_POINT_GRAPHICS,
+        m_dynamicForwardPipeline.getVkPipelineLayout(), 0, 1, &vkSet, 0, VK_NULL_HANDLE);
+      
       VkShaderStageFlags stageFlags = (VK_SHADER_STAGE_VERTEX_BIT);
 
       VkDeviceSize zero_offset = 0u;
@@ -389,17 +388,20 @@ void SimpleShadowmapRender::BuildCommandBufferSimple(VkCommandBuffer a_cmdBuff, 
       
       vkCmdBindVertexBuffers(a_cmdBuff, 0, 1, &vertexBuf, &zero_offset);
       vkCmdBindIndexBuffer(a_cmdBuff, indexBuf, 0, VK_INDEX_TYPE_UINT32);
-        
-      pushConst2M.projView = m_prevWorldViewProj * m_prevModelMatrix; // prev
-      m_prevModelMatrix = translate4x4({0.f, 0.2f * sinf(4.0f * m_uniforms.time), 0.f}) * m_pScnMgr->GetInstanceMatrix(5); // very good place for prev matrix update
-      pushConst2M.model = m_worldViewProj * m_prevModelMatrix; // current
 
-      vkCmdPushConstants(a_cmdBuff, m_velocityPipeline.getVkPipelineLayout(),
+      pushConst2M.projView = m_worldViewProj;
+
+      auto inst = m_pScnMgr->GetInstanceInfo(sphere_index);
+        
+      pushConst2M.model = translate4x4(float3(0.f, 0.2f * sinf(4.0f * m_uniforms.time), 0.f)) * m_pScnMgr->GetInstanceMatrix(sphere_index);
+
+      vkCmdPushConstants(a_cmdBuff, m_dynamicForwardPipeline.getVkPipelineLayout(),
         stageFlags, 0, sizeof(pushConst2M), &pushConst2M);
 
-      auto inst = m_pScnMgr->GetInstanceInfo(5);
       auto mesh_info = m_pScnMgr->GetMeshInfo(inst.mesh_id);
       vkCmdDrawIndexed(a_cmdBuff, mesh_info.m_indNum, 1, mesh_info.m_indexOffset, mesh_info.m_vertexOffset, 0);
+
+      taa_info.prevProjViewWorld = m_worldViewProj * pushConst2M.model;
     }
 
     //// resolve pass
@@ -408,13 +410,14 @@ void SimpleShadowmapRender::BuildCommandBufferSimple(VkCommandBuffer a_cmdBuff, 
       auto resolveInfo = etna::get_shader_program("resolve_pass_TAA");
 
       auto set = etna::create_descriptor_set(resolveInfo.getDescriptorLayoutId(0), a_cmdBuff,
-      {
-        etna::Binding {0, mainViewDepth.genBinding(defaultSampler.get(), vk::ImageLayout::eShaderReadOnlyOptimal, {0, 1, vk::ImageAspectFlagBits::eDepth})},
-        etna::Binding {1, mainViewDepth.genBinding(defaultSampler.get(), vk::ImageLayout::eShaderReadOnlyOptimal, {0, 1, vk::ImageAspectFlagBits::eStencil})},
-        etna::Binding {2, velocityBuffer.genBinding(defaultSampler.get(), vk::ImageLayout::eShaderReadOnlyOptimal)},
-        etna::Binding {3, TAAHistoryBuffer.genBinding(linearSampler.get(), vk::ImageLayout::eShaderReadOnlyOptimal)},
-        etna::Binding {4, AAimage.genBinding(defaultSampler.get(), vk::ImageLayout::eShaderReadOnlyOptimal)},
-      });
+        {
+          etna::Binding {0, mainViewDepth.genBinding(defaultSampler.get(), vk::ImageLayout::eShaderReadOnlyOptimal, {.aspectMask = vk::ImageAspectFlagBits::eDepth})},
+          etna::Binding {1, mainViewDepth.genBinding(defaultSampler.get(), vk::ImageLayout::eShaderReadOnlyOptimal, {.aspectMask = vk::ImageAspectFlagBits::eStencil})},
+          etna::Binding {2, velocityBuffer.genBinding(defaultSampler.get(), vk::ImageLayout::eShaderReadOnlyOptimal)},
+          etna::Binding {3, TAAHistoryBuffer.genBinding(linearSampler.get(), vk::ImageLayout::eShaderReadOnlyOptimal)},
+          etna::Binding {4, AAimage.genBinding(defaultSampler.get(), vk::ImageLayout::eShaderReadOnlyOptimal)},
+        }
+      );
 
       VkDescriptorSet vkSet = set.getVkSet();
 

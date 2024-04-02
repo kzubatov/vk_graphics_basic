@@ -17,7 +17,7 @@ layout(location = 0) in FS_IN
 } fsIn;
 
 layout(binding = 0) uniform sampler2D depthMap;
-layout(binding = 1) uniform usampler2D stencilMap;
+layout(binding = 1) uniform sampler2D stencilMap;
 layout(binding = 2) uniform sampler2D velocityBuffer;
 layout(binding = 3) uniform sampler2D historyBuffer;
 layout(binding = 4) uniform sampler2D currenFrame;
@@ -372,7 +372,7 @@ vec3 varianceClipping(inout vec3 prevColor)
     prevColor = rgb2ycbcr(prevColor);
     vec3 rayDir = currenColor - prevColor;
     vec3 t = min((minC - prevColor) / rayDir, (maxC - prevColor) / rayDir);
-    alpha = clamp(max(t.x, max(t.y, t.z)), 0.0, 1.0);
+    float alpha = clamp(max(t.x, max(t.y, t.z)), 0.0, 1.0);
     prevColor = ycbcr2rgb(mix(prevColor, currenColor, alpha));
 
     return ycbcr2rgb(currenColor);
@@ -383,8 +383,14 @@ void main()
     bool isMoving = bool(textureLod(stencilMap, fsIn.texCoord, 0).r);
     vec2 prev_uv;
 
+    // color = vec4(vec3(isMoving), 1.0);
+    color = textureLod(currenFrame, fsIn.texCoord, 0) + vec4(vec3(isMoving), 1.0);
+    return;
+
     if (isMoving) {
-        prev_uv = textureLod(velocityBuffer, fsIn.texCoord, 0).rg;
+        prev_uv = fsIn.texCoord - textureLod(velocityBuffer, fsIn.texCoord, 0).rg;
+        color = vec4(10.0 * textureLod(velocityBuffer, fsIn.texCoord, 0).rg, 0.0, 1.0);
+        return;
     } else {
         vec4 p = vec4(2.0 * fsIn.texCoord - 1.0, textureLod(depthMap, fsIn.texCoord, 0).r, 1.0);
         p = params.mPrevInvCur * p;

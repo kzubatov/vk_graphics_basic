@@ -4,7 +4,6 @@
 
 #include "unpack_attributes.h"
 
-
 layout(location = 0) in vec4 vPosNorm;
 layout(location = 1) in vec4 vTexCoordAndTang;
 
@@ -14,19 +13,23 @@ layout(push_constant) uniform params_t
     mat4 mModel;
 } params;
 
-
-layout (location = 0 ) out VS_OUT
+layout(location = 0) out VS_OUT
 {
     vec3 wPos;
     vec3 wNorm;
     vec3 wTangent;
     vec2 texCoord;
+#ifdef TAA_PASS
+    vec4 clipPosPrev;
+    vec4 clipPosCur;
+#endif
 } vOut;
 
-#ifdef USE_JITTERING
-layout(binding = 2) uniform Jitter {
+#ifdef TAA_PASS
+layout(binding = 2) uniform taa_info_t {
+    mat4 mProjViewWorldPrev;
     vec2 offset;
-} jitter;
+} taa_info;
 #endif
 
 out gl_PerVertex { vec4 gl_Position; };
@@ -41,7 +44,9 @@ void main(void)
     vOut.texCoord = vTexCoordAndTang.xy;
 
     gl_Position   = params.mProjView * vec4(vOut.wPos, 1.0);
-    #ifdef USE_JITTERING
-        gl_Position.xy += jitter.offset * gl_Position.w; 
+    #ifdef USE_taa_infoING
+        vOut.clipPosCur = gl_Position;
+        vOut.clipPosPrev = taa_info.mProjViewWorldPrev * vec4(vPosNorm.xyz, 1.0);
+        gl_Position.xy += taa_info.offset * gl_Position.w;
     #endif
 }

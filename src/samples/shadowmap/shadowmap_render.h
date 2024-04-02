@@ -90,14 +90,23 @@ private:
                               {0.875, 5.f / 9.f}, {0.0625f, 8.f / 9.f}};
 
   uint32_t HaltonCounter = 0;
-  etna::Buffer jitter;
-  void *m_jitterMappedMem = nullptr;
+  etna::Buffer taa_info_buffer;
+  
+  struct
+  {
+    float4x4 prevProjViewWorld;
+    float2 jitter;
+  } taa_info;
+
+  uint32_t sphere_index = 5u;
+
+  void *m_taaInfoMappedMem = nullptr;
+
+  float4x4 m_prevWorldViewProj;
+  // float4x4 m_prevModelMatrix;
 
   float4x4 m_worldViewProj;
   float4x4 m_lightMatrix;
-
-  float4x4 m_prevWorldViewProj;
-  float4x4 m_prevModelMatrix; // for moving sphere
 
   UniformParams m_uniforms {};
   void* m_uboMappedMem = nullptr;
@@ -106,9 +115,9 @@ private:
   bool m_clearHistoryBuffer = false;
 
   etna::GraphicsPipeline m_basicForwardPipeline {};
+  etna::GraphicsPipeline m_dynamicForwardPipeline {};
   etna::GraphicsPipeline m_resolvePipeline {};
   etna::GraphicsPipeline m_shadowPipeline {};
-  etna::GraphicsPipeline m_velocityPipeline {};
 
   std::shared_ptr<vk_utils::DescriptorMaker> m_pBindings = nullptr;
   
@@ -167,7 +176,8 @@ private:
 
   void BuildCommandBufferSimple(VkCommandBuffer a_cmdBuff, VkImage a_targetImage, VkImageView a_targetImageView);
 
-  void DrawSceneCmd(VkCommandBuffer a_cmdBuff, const float4x4& a_wvp, VkPipelineLayout a_pipelineLayout = VK_NULL_HANDLE);
+  void DrawSceneCmd(VkCommandBuffer a_cmdBuff, const float4x4& a_wvp, 
+    VkPipelineLayout a_pipelineLayout = VK_NULL_HANDLE, bool a_ignoreDynamic = false);
 
   void loadShaders();
 
@@ -176,7 +186,7 @@ private:
   void RecreateResolvePassResources();
 
   void UpdateUniformBuffer(float a_time);
-  void UpdateJitterBuffer();
+  void UpdateTAAInfo();
 
   void SetupDeviceExtensions();
 

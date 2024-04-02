@@ -72,13 +72,13 @@ void SimpleShadowmapRender::DrawFrame(float a_time, DrawMode a_mode)
     case DrawMode::WITH_GUI:
       SetupGUIElements();
       
-      if (m_AAType == TAA) UpdateJitterBuffer();
-
       if (m_recreateForwardPipelineAndImages) 
       {
         RecreateResolvePassResources();
         m_recreateForwardPipelineAndImages = false;
       }
+
+      if (m_AAType == TAA) UpdateTAAInfo();
 
       DrawFrameSimple(true);
       break;

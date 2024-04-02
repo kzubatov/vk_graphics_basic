@@ -48,12 +48,12 @@ void SimpleShadowmapRender::UpdateUniformBuffer(float a_time)
   memcpy(m_uboMappedMem, &m_uniforms, sizeof(m_uniforms));
 }
 
-void SimpleShadowmapRender::UpdateJitterBuffer()
+void SimpleShadowmapRender::UpdateTAAInfo()
 {
-  auto HaltonOffset = (2.0f * HaltonSequence[HaltonCounter++] - float2(1.f)) / float2(m_width, m_height);
+  taa_info.jitter= (2.0f * HaltonSequence[HaltonCounter++] - float2(1.f)) / float2(m_width, m_height);
   HaltonCounter &= 7;
 
-  memcpy(m_jitterMappedMem, &HaltonOffset, sizeof(HaltonOffset));
+  memcpy(m_taaInfoMappedMem, &taa_info, sizeof(taa_info));
 }
 
 void SimpleShadowmapRender::RecreateResolvePassResources() 
@@ -67,11 +67,8 @@ void SimpleShadowmapRender::RecreateResolvePassResources()
     };
 
   auto& pipelineManager = etna::get_context().getPipelineManager();
-
-  std::vector<vk::DynamicState> dynamicStates = {vk::DynamicState::eViewport, vk::DynamicState::eScissor};
-  if (m_AAType == TAA) dynamicStates.push_back(vk::DynamicState::eStencilReference);
-
-  m_basicForwardPipeline = pipelineManager.createGraphicsPipeline(m_AAType == TAA ? "simple_material_TAA" : "simple_material",
+  
+  m_basicForwardPipeline = pipelineManager.createGraphicsPipeline("simple_material",
     {
       .vertexShaderInput = sceneVertexInputDesc,
       .multisampleConfig = 
@@ -85,19 +82,50 @@ void SimpleShadowmapRender::RecreateResolvePassResources()
           .depthTestEnable = true,
           .depthWriteEnable = true,
           .depthCompareOp = vk::CompareOp::eLessOrEqual,
-          .stencilTestEnable = m_AAType == TAA,
-          .front = {vk::StencilOp::eKeep, vk::StencilOp::eReplace, vk::StencilOp::eKeep, vk::CompareOp::eAlways, 1, 1, 0},
-          .back = {vk::StencilOp::eKeep, vk::StencilOp::eReplace, vk::StencilOp::eKeep, vk::CompareOp::eAlways, 1, 1, 0},
           .maxDepthBounds = 1.f,
         },
       .fragmentShaderOutput =
         {
           .colorAttachmentFormats = {static_cast<vk::Format>(m_swapchain.GetFormat())},
           .depthAttachmentFormat = m_AAType == TAA ? vk::Format::eD32SfloatS8Uint : vk::Format::eD32Sfloat,
-          .stencilAttachmentFormat = m_AAType == TAA ? vk::Format::eD32SfloatS8Uint : vk::Format::eUndefined,
         },
-      .dynamicStates = dynamicStates, 
     });
+  
+  if (m_AAType == TAA)
+  {
+    m_dynamicForwardPipeline = pipelineManager.createGraphicsPipeline("simple_material_TAA_dynamic",
+      {
+        .vertexShaderInput = sceneVertexInputDesc,
+        .multisampleConfig = 
+          {
+            .rasterizationSamples = vk::SampleCountFlagBits::e1,
+          },
+        .blendingConfig = 
+        {
+          .attachments = {2, vk::PipelineColorBlendAttachmentState{
+            .blendEnable = false,
+            .colorWriteMask = vk::ColorComponentFlagBits::eR | vk::ColorComponentFlagBits::eG |
+              vk::ColorComponentFlagBits::eB | vk::ColorComponentFlagBits::eA,
+          }},
+        },
+        .depthConfig = 
+          {
+            .depthTestEnable = true,
+            .depthWriteEnable = true,
+            .depthCompareOp = vk::CompareOp::eLessOrEqual,
+            .stencilTestEnable = true,
+            .front = {vk::StencilOp::eKeep, vk::StencilOp::eReplace, vk::StencilOp::eKeep, vk::CompareOp::eAlways, 1, 1, 1},
+            .back = {vk::StencilOp::eKeep, vk::StencilOp::eReplace, vk::StencilOp::eKeep, vk::CompareOp::eAlways, 1, 1, 1},
+            .maxDepthBounds = 1.f,
+          },
+        .fragmentShaderOutput =
+          {
+            .colorAttachmentFormats = {static_cast<vk::Format>(m_swapchain.GetFormat()), vk::Format::eR8G8Snorm},
+            .depthAttachmentFormat = vk::Format::eD32SfloatS8Uint,
+            .stencilAttachmentFormat =vk::Format::eD32SfloatS8Uint,
+          },
+      });
+  }
 
   switch (m_AAType)
   {
@@ -143,13 +171,6 @@ void SimpleShadowmapRender::RecreateResolvePassResources()
       .format = static_cast<vk::Format>(m_swapchain.GetFormat()),
       .imageUsage = vk::ImageUsageFlagBits::eColorAttachment | vk::ImageUsageFlagBits::eSampled,
     });
-    mainViewDepth = m_context->createImage(etna::Image::CreateInfo
-    {
-      .extent = vk::Extent3D{m_width << 1u, m_height << 1u, 1u},
-      .name = "main_view_depth",
-      .format = vk::Format::eD32Sfloat,
-      .imageUsage = vk::ImageUsageFlagBits::eDepthStencilAttachment,
-    });
     m_resolvePipeline = pipelineManager.createGraphicsPipeline("resolve_pass",
     {
       .vertexShaderInput = {},
@@ -158,11 +179,27 @@ void SimpleShadowmapRender::RecreateResolvePassResources()
           .colorAttachmentFormats = {static_cast<vk::Format>(m_swapchain.GetFormat())},
         },
     });
+    mainViewDepth = m_context->createImage(etna::Image::CreateInfo
+    {
+      .extent = vk::Extent3D{m_width << 1u, m_height << 1u, 1u},
+      .name = "main_view_depth",
+      .format = vk::Format::eD32Sfloat,
+      .imageUsage = vk::ImageUsageFlagBits::eDepthStencilAttachment,
+    });
     break;
   case TAA:
     m_prevWorldViewProj = m_worldViewProj;
-    m_prevModelMatrix = translate4x4({0.f, 0.2f * sinf(4.0f * m_uniforms.time), 0.f}) * m_pScnMgr->GetInstanceMatrix(5);
-
+    taa_info.prevProjViewWorld = m_prevWorldViewProj 
+      * translate4x4({0.f, 0.2f * sinf(4.0f * m_uniforms.time), 0.f}) 
+      * m_pScnMgr->GetInstanceMatrix(sphere_index);
+    
+    mainViewDepth = m_context->createImage(etna::Image::CreateInfo
+    {
+      .extent = vk::Extent3D{m_width, m_height, 1u},
+      .name = "main_view_depth",
+      .format = vk::Format::eD32SfloatS8Uint,
+      .imageUsage = vk::ImageUsageFlagBits::eDepthStencilAttachment | vk::ImageUsageFlagBits::eSampled,
+    });
     TAAHistoryBuffer = m_context->createImage(etna::Image::CreateInfo
     {
       .extent = vk::Extent3D{m_width, m_height, 1u},
@@ -174,7 +211,7 @@ void SimpleShadowmapRender::RecreateResolvePassResources()
     {
       .extent = vk::Extent3D{m_width, m_height, 1u},
       .name = "velocity_buffer",
-      .format = vk::Format::eR16G16Sfloat,
+      .format = vk::Format::eR8G8Snorm,
       .imageUsage = vk::ImageUsageFlagBits::eColorAttachment | vk::ImageUsageFlagBits::eSampled,
     });
     AAimage = m_context->createImage(etna::Image::CreateInfo
@@ -183,14 +220,6 @@ void SimpleShadowmapRender::RecreateResolvePassResources()
       .name = "AA_image",
       .format = static_cast<vk::Format>(m_swapchain.GetFormat()),
       .imageUsage = vk::ImageUsageFlagBits::eColorAttachment | vk::ImageUsageFlagBits::eSampled,
-    });
-    mainViewDepth = m_context->createImage(etna::Image::CreateInfo
-    {
-      .extent = vk::Extent3D{m_width, m_height, 1u},
-      .name = "main_view_depth",
-      .format = vk::Format::eD32SfloatS8Uint,
-      .imageUsage = vk::ImageUsageFlagBits::eDepthStencilAttachment | 
-                    vk::ImageUsageFlagBits::eSampled,
     });
 
     m_resolvePipeline = pipelineManager.createGraphicsPipeline("resolve_pass_TAA",
