@@ -19,15 +19,19 @@ layout(location = 0) out VS_OUT
     vec3 wNorm;
     vec3 wTangent;
     vec2 texCoord;
-#ifdef TAA_PASS
+#ifdef TAA_PASS_DYNAMIC
     vec4 clipPosPrev;
     vec4 clipPosCur;
 #endif
 } vOut;
 
-#ifdef TAA_PASS
+#ifdef TAA_PASS_DYNAMIC
 layout(binding = 2) uniform taa_info_t {
     mat4 mProjViewWorldPrev;
+    vec2 offset;
+} taa_info;
+#elif defined(TAA_PASS_STATIC)
+layout(binding = 2) uniform taa_info_t {
     vec2 offset;
 } taa_info;
 #endif
@@ -44,9 +48,11 @@ void main(void)
     vOut.texCoord = vTexCoordAndTang.xy;
 
     gl_Position   = params.mProjView * vec4(vOut.wPos, 1.0);
-    #ifdef USE_taa_infoING
-        vOut.clipPosCur = gl_Position;
-        vOut.clipPosPrev = taa_info.mProjViewWorldPrev * vec4(vPosNorm.xyz, 1.0);
-        gl_Position.xy += taa_info.offset * gl_Position.w;
-    #endif
+#ifdef TAA_PASS_DYNAMIC
+    vOut.clipPosCur = gl_Position;
+    vOut.clipPosPrev = taa_info.mProjViewWorldPrev * vec4(vPosNorm.xyz, 1.0);
+    gl_Position.xy += taa_info.offset * gl_Position.w;
+#elif defined(TAA_PASS_STATIC)
+    gl_Position.xy += taa_info.offset * gl_Position.w;
+#endif
 }

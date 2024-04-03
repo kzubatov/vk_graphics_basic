@@ -120,9 +120,14 @@ void SimpleShadowmapRender::loadShaders()
     VK_GRAPHICS_BASIC_ROOT"/resources/shaders/simple.vert.spv"
   });
 
+  etna::create_program("simple_material_TAA_static", {
+    VK_GRAPHICS_BASIC_ROOT"/resources/shaders/simple_shadow.frag.spv", 
+    VK_GRAPHICS_BASIC_ROOT"/resources/shaders/simple_taa_static.vert.spv"
+  });
+
   etna::create_program("simple_material_TAA_dynamic", {
-    VK_GRAPHICS_BASIC_ROOT"/resources/shaders/simple_shadow_taa.frag.spv", 
-    VK_GRAPHICS_BASIC_ROOT"/resources/shaders/simple_taa.vert.spv"
+    VK_GRAPHICS_BASIC_ROOT"/resources/shaders/simple_shadow_taa_dynamic.frag.spv", 
+    VK_GRAPHICS_BASIC_ROOT"/resources/shaders/simple_taa_dynamic.vert.spv"
   });
 
   etna::create_program("simple_shadow", {VK_GRAPHICS_BASIC_ROOT"/resources/shaders/simple.vert.spv"});
@@ -160,15 +165,15 @@ void SimpleShadowmapRender::SetupSimplePipeline()
     };
 
   auto& pipelineManager = etna::get_context().getPipelineManager();
-  m_basicForwardPipeline = pipelineManager.createGraphicsPipeline("simple_material",
-    {
-      .vertexShaderInput = sceneVertexInputDesc,
-      .fragmentShaderOutput =
-        {
-          .colorAttachmentFormats = {static_cast<vk::Format>(m_swapchain.GetFormat())},
-          .depthAttachmentFormat = vk::Format::eD32Sfloat
-        },
-    });
+  // m_basicForwardPipeline = pipelineManager.createGraphicsPipeline("simple_material",
+  //   {
+  //     .vertexShaderInput = sceneVertexInputDesc,
+  //     .fragmentShaderOutput =
+  //       {
+  //         .colorAttachmentFormats = {static_cast<vk::Format>(m_swapchain.GetFormat())},
+  //         .depthAttachmentFormat = vk::Format::eD32Sfloat
+  //       },
+  //   });
 
   m_shadowPipeline = pipelineManager.createGraphicsPipeline("simple_shadow",
     {
@@ -178,6 +183,8 @@ void SimpleShadowmapRender::SetupSimplePipeline()
           .depthAttachmentFormat = vk::Format::eD16Unorm
         },
     });
+
+  RecreateResolvePassResources();
 }
 
 void SimpleShadowmapRender::DestroyPipelines()
@@ -215,7 +222,6 @@ void SimpleShadowmapRender::DrawSceneCmd(VkCommandBuffer a_cmdBuff,
   {
     auto inst         = m_pScnMgr->GetInstanceInfo(i);
     
-
     if (i != sphere_index)
       pushConst2M.model = m_pScnMgr->GetInstanceMatrix(i);
     else
@@ -266,14 +272,17 @@ void SimpleShadowmapRender::BuildCommandBufferSimple(VkCommandBuffer a_cmdBuff, 
   //// draw final scene to screen
   //
   {
-    auto simpleMaterialInfo = etna::get_shader_program("simple_material");
+    auto simpleMaterialInfo = etna::get_shader_program(m_AAType == TAA ? "simple_material_TAA_static" : "simple_material");
     
-    auto set = etna::create_descriptor_set(simpleMaterialInfo.getDescriptorLayoutId(0), a_cmdBuff,
-      {
-        etna::Binding {0, constants.genBinding()},
-        etna::Binding {1, shadowMap.genBinding(defaultSampler.get(), vk::ImageLayout::eShaderReadOnlyOptimal)}
-      }
-    );
+    std::vector<etna::Binding> bindings = {
+      etna::Binding {0, constants.genBinding()},
+      etna::Binding {1, shadowMap.genBinding(defaultSampler.get(), vk::ImageLayout::eShaderReadOnlyOptimal)},
+    };
+
+    if (m_AAType == TAA)
+      bindings.push_back({2, taa_info_buffer.genBinding(sizeof(float4x4))});
+
+    auto set = etna::create_descriptor_set(simpleMaterialInfo.getDescriptorLayoutId(0), a_cmdBuff, std::move(bindings));
 
     VkDescriptorSet vkSet = set.getVkSet();
 
@@ -372,7 +381,7 @@ void SimpleShadowmapRender::BuildCommandBufferSimple(VkCommandBuffer a_cmdBuff, 
           .image = mainViewDepth.get(), .view = mainViewDepth.getView({}), .loadOp = vk::AttachmentLoadOp::eLoad,
         },
         {
-          .image = mainViewDepth.get(), .view = mainViewDepth.getView({}), .loadOp = vk::AttachmentLoadOp::eLoad,
+          .image = mainViewDepth.get(), .view = mainViewDepth.getView({}), .loadOp = vk::AttachmentLoadOp::eClear,
         }
       );
 
@@ -427,7 +436,7 @@ void SimpleShadowmapRender::BuildCommandBufferSimple(VkCommandBuffer a_cmdBuff, 
       vkCmdBindDescriptorSets(a_cmdBuff, VK_PIPELINE_BIND_POINT_GRAPHICS,
         m_resolvePipeline.getVkPipelineLayout(), 0, 1, &vkSet, 0, VK_NULL_HANDLE);
       
-      struct { float4x4 mx; float2 res; } pushConst = {m_prevWorldViewProj * inverse4x4(m_worldViewProj), float2(m_width, m_height)};
+      struct { float4x4 mx; float2 res; } pushConst = {m_prevWorldViewProj * inverse4x4(m_worldViewProj), float2(static_cast<float>(m_width), static_cast<float>(m_height))};
       vkCmdPushConstants(a_cmdBuff, m_resolvePipeline.getVkPipelineLayout(), VK_SHADER_STAGE_FRAGMENT_BIT, 0, sizeof(pushConst), &pushConst);
 
       vkCmdDraw(a_cmdBuff, 3, 1, 0, 0);

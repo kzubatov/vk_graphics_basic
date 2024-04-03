@@ -11,6 +11,7 @@ if __name__ == '__main__':
     for shader in shader_list:
         subprocess.run([glslang_cmd, "-V", shader, "-o", "{}.spv".format(shader)])
 
-    subprocess.run([glslang_cmd, "-V", "-DTAA_PASS", "simple.vert", "-o", "simple_taa.vert.spv"])
-    subprocess.run([glslang_cmd, "-V", "-DTAA_PASS", "simple_shadow.frag", "-o", "simple_shadow_taa.frag.spv"])
+    subprocess.run([glslang_cmd, "-V", "-DTAA_PASS_STATIC", "simple.vert", "-o", "simple_taa_static.vert.spv"])
+    subprocess.run([glslang_cmd, "-V", "-DTAA_PASS_DYNAMIC", "simple.vert", "-o", "simple_taa_dynamic.vert.spv"])
+    subprocess.run([glslang_cmd, "-V", "-DTAA_PASS_DYNAMIC", "simple_shadow.frag", "-o", "simple_shadow_taa_dynamic.frag.spv"])
 

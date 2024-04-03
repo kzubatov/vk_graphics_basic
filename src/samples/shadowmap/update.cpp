@@ -50,7 +50,7 @@ void SimpleShadowmapRender::UpdateUniformBuffer(float a_time)
 
 void SimpleShadowmapRender::UpdateTAAInfo()
 {
-  taa_info.jitter= (2.0f * HaltonSequence[HaltonCounter++] - float2(1.f)) / float2(m_width, m_height);
+  taa_info.jitter= (2.0f * HaltonSequence[HaltonCounter++] - float2(1.f)) / float2(static_cast<float>(m_width), static_cast<float>(m_height));
   HaltonCounter &= 7;
 
   memcpy(m_taaInfoMappedMem, &taa_info, sizeof(taa_info));
@@ -68,7 +68,7 @@ void SimpleShadowmapRender::RecreateResolvePassResources()
 
   auto& pipelineManager = etna::get_context().getPipelineManager();
   
-  m_basicForwardPipeline = pipelineManager.createGraphicsPipeline("simple_material",
+  m_basicForwardPipeline = pipelineManager.createGraphicsPipeline(m_AAType == TAA ? "simple_material_TAA_static" : "simple_material",
     {
       .vertexShaderInput = sceneVertexInputDesc,
       .multisampleConfig = 

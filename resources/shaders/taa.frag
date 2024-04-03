@@ -1,12 +1,12 @@
 #version 450
 #extension GL_ARB_separate_shader_objects : enable
 
-#define OPTIMIZED_METHOD
+// #define OPTIMIZED_METHOD
 #define WINDOW 1
 
 #ifdef OPTIMIZED_METHOD
-    #extension GL_GOOGLE_include_directive : require
-    #include "diff_swap.h"
+#extension GL_GOOGLE_include_directive : require
+#include "diff_swap.h"
 #endif
 
 layout(location = 0) out vec4 color;
@@ -17,7 +17,7 @@ layout(location = 0) in FS_IN
 } fsIn;
 
 layout(binding = 0) uniform sampler2D depthMap;
-layout(binding = 1) uniform sampler2D stencilMap;
+layout(binding = 1) uniform usampler2D stencilMap;
 layout(binding = 2) uniform sampler2D velocityBuffer;
 layout(binding = 3) uniform sampler2D historyBuffer;
 layout(binding = 4) uniform sampler2D currenFrame;
@@ -27,7 +27,6 @@ layout(push_constant) uniform params_t
     mat4 mPrevInvCur;
     vec2 resolution;
 } params;
-
 
 vec2 c_onePixel = 1.0 / params.resolution;
 vec2 c_twoPixels = 2.0 / params.resolution;
@@ -126,209 +125,173 @@ void getVarianceClippingInfo(out vec3 currenColor, out vec3 mean, out vec3 varia
     const vec2 t = vec2(isOdd) * -2.0 + 1.0;
 
 #if WINDOW == 1
-    // 3x3 ver 1
-    /* vec4 coord = fsIn.texCoord.xyxy + t.xyxy * vec4(c_onePixel, -c_onePixel);
-
-    vec3 tmp_h, tmp_v;
-
-    mean = tmp_v = tmp_h = rgb2ycbcr(textureLod(currenFrame, coord.xy, 0).rgb);
-    variance = tmp_v * tmp_v;
-
-    tmp_v += dFdxFine(tmp_v) * t.x;
-    mean += tmp_v;
-    variance += tmp_v * tmp_v;
-
-    currenColor = tmp_v += dFdyFine(tmp_v) * t.y;
-    tmp_h += dFdyFine(tmp_h) * t.y;
-    mean += tmp_h + tmp_v;
-    variance += tmp_h * tmp_h + tmp_v * tmp_v;
-
-    tmp_v = rgb2ycbcr(textureLod(currenFrame, coord.xw, 0).rgb);
-    tmp_h = rgb2ycbcr(textureLod(currenFrame, coord.zy, 0).rgb);
-
-    mean += tmp_h + tmp_v;
-    variance += tmp_h * tmp_h + tmp_v * tmp_v;
+    // 3x3, interpolation is optimal for this area size
     
-    tmp_v += dFdyFine(tmp_v) * t.y;
-    tmp_h += dFdyFine(tmp_h) * t.y;
-    mean += tmp_h + tmp_v;
-    variance += tmp_h * tmp_h + tmp_v * tmp_v;
+    // use nonuniform sampling to avoid ternary operators
+    vec4 coord = fsIn.texCoord.xyxy + t.xyxy * vec4(c_onePixel, -c_onePixel);
+
+    // get two texels from the row that will be interpolated for our neighbor along y-axis
+    vec3 texel_0 = rgb2ycbcr(textureLod(currenFrame, coord.zy, 0).rgb); 
+    // this texel can be exchanged along the x-axis
+    vec3 texel_1 = rgb2ycbcr(textureLod(currenFrame, coord.xy, 0).rgb);
     
-    tmp_v = rgb2ycbcr(textureLod(currenFrame, coord.zw, 0).rgb);
-    mean += tmp_v;
-    variance += tmp_v * tmp_v;
-    return; */
+    // get partial sums 
+    mean = texel_0 + texel_1;
+    variance = texel_0 * texel_0 + texel_1 * texel_1;
 
-    // 3x3 ver 2
-    /* vec4 coord = fsIn.texCoord.xyxy + t.xyxy * vec4(c_onePixel, -c_onePixel);
+    // get middle texel for this row using swap along x-axis
+    texel_1 += dFdxFine(texel_1) * t.x;
 
-    mean = rgb2ycbcr(textureLod(currenFrame, coord.xy, 0).rgb);
-    variance = mean * mean;
+    mean += texel_1;
+    variance += texel_1 * texel_1;
 
-    mean += currenColor = mean + dFdxFine(mean) * t.x;
-    variance += variance + dFdxFine(variance) * t.x;
+    // get central (for local area) texel using swap along y-axis
+    currenColor = texel_1 + dFdyFine(texel_1) * t.y;
 
-    currenColor += dFdyFine(currenColor) * t.y; 
+    // interpolate partial sums for the neighbor along y-axis
     mean += mean + dFdyFine(mean) * t.y;
     variance += variance + dFdyFine(variance) * t.y;
 
-    vec3 tmp_v = rgb2ycbcr(textureLod(currenFrame, coord.xw, 0).rgb);
-    vec3 tmp_h = rgb2ycbcr(textureLod(currenFrame, coord.zy, 0).rgb);
+    // get two texels from the row that won't be interpolated for our neighbor along y-axis
+    texel_0 = rgb2ycbcr(textureLod(currenFrame, coord.zw, 0).rgb); 
+    // this texel can be exchanged along the x-axis
+    texel_1 = rgb2ycbcr(textureLod(currenFrame, coord.xw, 0).rgb);
 
-    mean += (tmp_v + tmp_h) * 2.0 + dFdxFine(tmp_v) * t.x + dFdyFine(tmp_h) * t.y;
-    tmp_h *= tmp_h; tmp_v *= tmp_v;
-    variance += (tmp_v + tmp_h) * 2.0 + dFdxFine(tmp_v) * t.x + dFdyFine(tmp_h) * t.y;
-                
-    tmp_v = rgb2ycbcr(textureLod(currenFrame, coord.zw, 0).rgb);
-    mean += tmp_v;
-    variance += tmp_v * tmp_v;
-    return; */
+    mean += texel_0 + texel_1;
+    variance += texel_0 * texel_0 + texel_1 * texel_1;
+    
+    // get middle texel for this row using swap along x-axis
+    texel_1 += dFdxFine(texel_1) * t.x;
 
-    // 3x3 ver 3
-    vec4 coord = fsIn.texCoord.xyxy + vec4(c_onePixel, -c_onePixel);
-
-    mean = rgb2ycbcr(textureLod(currenFrame, coord.xy, 0).rgb);
-    variance = mean * mean;
-
-    vec3 texel_0 = rgb2ycbcr(textureLod(currenFrame, coord.zw, 0).rgb);
-    vec3 texel_1 = rgb2ycbcr(textureLod(currenFrame, coord.xw, 0).rgb); 
-    vec3 texel_2 = rgb2ycbcr(textureLod(currenFrame, coord.zy, 0).rgb);
-    vec3 texel_3 = rgb2ycbcr(textureLod(currenFrame, coord.xy, 0).rgb);
-
-    mean = texel_0 + texel_1 + texel_2 + texel_3;
-    variance = texel_0 * texel_0 + texel_1 * texel_1 + texel_2 * texel_2 + texel_3 * texel_3;
-
-    x_swap(texel_1, texel_0, currenColor, isOdd.x);
-    y_swap(texel_2, texel_0, texel_0, isOdd.y);
-    x_swap(texel_3, texel_2, texel_2, isOdd.x);
-    y_swap(texel_3, texel_1, texel_3, isOdd.y);
-
-    mean += currenColor + texel_0 + texel_2 + texel_3;
-    variance += currenColor * currenColor + texel_0 * texel_0 + texel_2 * texel_2 + texel_3 * texel_3;
-
-    y_swap(texel_2, currenColor, currenColor, isOdd.y);
-    mean += currenColor;
-    variance += currenColor * currenColor; 
+    // complete partial sums
+    mean += texel_1;
+    variance += texel_1 * texel_1;
     return;
 #elif WINDOW == 2
-    // 5x5 ver 1
-    vec4 coord = fsIn.texCoord.xyxy + t.xyxy * vec4(c_twoPixels, -c_twoPixels);
+    // 5x5, nonuniform sampling and transfer of partial sums are optimal for this and larger area sizes
 
-    currenColor = mean = rgb2ycbcr(textureLod(currenFrame, fsIn.texCoord, 0).rgb);
-    variance = mean * mean;
+    // nonuniform sampling
+    vec3 texels[9];
+    texels[0] = rgb2ycbcr(textureLod(currenFrame, fsIn.texCoord + t * c_onePixel * vec2(-2, -2), 0).rgb);
+    texels[1] = rgb2ycbcr(textureLod(currenFrame, fsIn.texCoord + t * c_onePixel * vec2( 0, -2), 0).rgb);
+    texels[2] = rgb2ycbcr(textureLod(currenFrame, fsIn.texCoord + t * c_onePixel * vec2( 2, -2), 0).rgb);
+    texels[3] = rgb2ycbcr(textureLod(currenFrame, fsIn.texCoord + t * c_onePixel * vec2(-2,  0), 0).rgb);
+    texels[4] = rgb2ycbcr(textureLod(currenFrame, fsIn.texCoord, 0).rgb);
+    texels[5] = rgb2ycbcr(textureLod(currenFrame, fsIn.texCoord + t * c_onePixel * vec2( 2,  0), 0).rgb);
+    texels[6] = rgb2ycbcr(textureLod(currenFrame, fsIn.texCoord + t * c_onePixel * vec2(-2,  2), 0).rgb);
+    texels[7] = rgb2ycbcr(textureLod(currenFrame, fsIn.texCoord + t * c_onePixel * vec2( 0,  2), 0).rgb);
+    texels[8] = rgb2ycbcr(textureLod(currenFrame, fsIn.texCoord + t * c_onePixel * vec2( 2,  2), 0).rgb);
 
-    vec3 tmp = rgb2ycbcr(textureLod(currenFrame, vec2(coord.x, fsIn.texCoord.y), 0).rgb);
-    mean += tmp;
-    variance += tmp * tmp;
+    currenColor = texels[4];
 
-    tmp = rgb2ycbcr(textureLod(currenFrame, vec2(fsIn.texCoord.x, coord.y), 0).rgb);
-    mean += tmp;
-    variance += tmp * tmp;
+    variance = mean = vec3(0);
     
-    tmp = rgb2ycbcr(textureLod(currenFrame, coord.xy, 0).rgb);
-    mean += tmp;
-    variance += tmp * tmp;
+    // Compute partial sums for our y-axis neighbor
+    for (int i = 3; i <= 8; ++i)
+    {
+        mean += texels[i];
+        variance += texels[i] * texels[i];
+    }
 
-    mean += mean + dFdxFine(mean) * t.x;
-    variance += variance + dFdxFine(variance) * t.x;
+    // Perform swap along x-axis
+    mean += dFdxFine(mean) * t.x;
+    variance += dFdxFine(variance) * t.x;
 
-    mean += mean + dFdyFine(mean) * t.y;
-    variance += variance + dFdyFine(variance) * t.y;
+    // and contribute a part in diagonal neighbor’s sums
+    mean += texels[4] + texels[5] + texels[7] + texels[8];
+    variance += texels[4] * texels[4] + texels[5] * texels[5] + texels[7] * texels[7] + texels[8] * texels[8];
 
-    vec3 tmp_mean;
-    vec3 tmp_variance;
+    // Perform swap along y-axis
+    mean += dFdyFine(mean) * t.y;
+    variance += dFdyFine(variance) * t.y;
 
-    tmp_mean = tmp = rgb2ycbcr(textureLod(currenFrame, vec2(fsIn.texCoord.x, coord.w), 0).rgb);
-    tmp_variance = tmp * tmp;
+    // And contribute a part in x-axis neighbor’s sums
+    mean += texels[1] + texels[2] + texels[4] + texels[5] + texels[7] + texels[8];
+    variance += texels[1] * texels[1] + texels[2] * texels[2] + texels[4] * texels[4]
+        + texels[5] * texels[5] + texels[7] * texels[7] + texels[8] * texels[8];
+
+    // Perform swap along x-axis
+    mean += dFdxFine(mean) * t.x;
+    variance += dFdxFine(variance) * t.x;
+
+    //And contribute a part in sums of fragment itself:
+    for (int i = 0; i <= 8; ++i)
+    {
+        mean += texels[i];
+        variance += texels[i] * texels[i];
+    }
     
-    tmp_mean += tmp = rgb2ycbcr(textureLod(currenFrame, vec2(coord.xw), 0).rgb);
-    tmp_variance += tmp * tmp;
-
-    mean += tmp_mean + tmp_mean + dFdxFine(tmp_mean) * t.x;
-    variance += tmp_variance + tmp_variance + dFdxFine(tmp_variance) * t.x;
-
-    tmp_mean = tmp = rgb2ycbcr(textureLod(currenFrame, vec2(coord.z, fsIn.texCoord.y), 0).rgb);
-    tmp_variance = tmp * tmp;
-    
-    tmp_mean += tmp = rgb2ycbcr(textureLod(currenFrame, vec2(coord.zy), 0).rgb);
-    tmp_variance += tmp * tmp;
-
-    mean += tmp_mean + tmp_mean + dFdyFine(tmp_mean) * t.y;
-    variance += tmp_variance + tmp_variance + dFdyFine(tmp_variance) * t.y;
-
-    mean += tmp = rgb2ycbcr(textureLod(currenFrame, vec2(coord.zw), 0).rgb);
-    variance += tmp * tmp;
     return;
 #elif WINDOW == 3
     // ok maybe it has no sense but why not (at least it has +fps and may be useful in 16k on mobile devices in 2040)
-    // 7x7 ver 1
-    vec4 coord_onePixel = fsIn.texCoord.xyxy + t.xyxy * vec4(c_onePixel, -c_onePixel);
-    vec4 coord_threePixel = fsIn.texCoord.xyxy + 3.0 * t.xyxy * vec4(c_onePixel, -c_onePixel);
-    vec3 tmp;
+    // 7x7
+
+    // nonuniform sampling
+    vec3 texels[16];
+    texels[ 0] = rgb2ycbcr(textureLod(currenFrame, fsIn.texCoord + t * c_onePixel * vec2(-3, -3), 0).rgb);
+    texels[ 1] = rgb2ycbcr(textureLod(currenFrame, fsIn.texCoord + t * c_onePixel * vec2(-1, -3), 0).rgb);
+    texels[ 2] = rgb2ycbcr(textureLod(currenFrame, fsIn.texCoord + t * c_onePixel * vec2( 1, -3), 0).rgb);
+    texels[ 3] = rgb2ycbcr(textureLod(currenFrame, fsIn.texCoord + t * c_onePixel * vec2( 3, -3), 0).rgb);
+    texels[ 4] = rgb2ycbcr(textureLod(currenFrame, fsIn.texCoord + t * c_onePixel * vec2(-3, -1), 0).rgb);
+    texels[ 5] = rgb2ycbcr(textureLod(currenFrame, fsIn.texCoord + t * c_onePixel * vec2(-1, -1), 0).rgb);
+    texels[ 6] = rgb2ycbcr(textureLod(currenFrame, fsIn.texCoord + t * c_onePixel * vec2( 1, -1), 0).rgb);
+    texels[ 7] = rgb2ycbcr(textureLod(currenFrame, fsIn.texCoord + t * c_onePixel * vec2( 3, -1), 0).rgb);
+    texels[ 8] = rgb2ycbcr(textureLod(currenFrame, fsIn.texCoord + t * c_onePixel * vec2(-3,  1), 0).rgb);
+    texels[ 9] = rgb2ycbcr(textureLod(currenFrame, fsIn.texCoord + t * c_onePixel * vec2(-1,  1), 0).rgb);
+    texels[10] = rgb2ycbcr(textureLod(currenFrame, fsIn.texCoord + t * c_onePixel * vec2( 1,  1), 0).rgb);
+    texels[11] = rgb2ycbcr(textureLod(currenFrame, fsIn.texCoord + t * c_onePixel * vec2( 3,  1), 0).rgb);
+    texels[12] = rgb2ycbcr(textureLod(currenFrame, fsIn.texCoord + t * c_onePixel * vec2(-3,  3), 0).rgb);
+    texels[13] = rgb2ycbcr(textureLod(currenFrame, fsIn.texCoord + t * c_onePixel * vec2(-1,  3), 0).rgb);
+    texels[14] = rgb2ycbcr(textureLod(currenFrame, fsIn.texCoord + t * c_onePixel * vec2( 1,  3), 0).rgb);
+    texels[15] = rgb2ycbcr(textureLod(currenFrame, fsIn.texCoord + t * c_onePixel * vec2( 3,  3), 0).rgb);
+
+    variance = mean = vec3(0);
     
-    mean = tmp = rgb2ycbcr(textureLod(currenFrame, coord_onePixel.zw, 0).rgb);
-    variance = tmp * tmp;
+    // Compute partial sums for our y-axis neighbor
+    for (int i = 4; i <= 15; ++i)
+    {
+        mean += texels[i];
+        variance += texels[i] * texels[i];
+    }
 
-    mean += tmp = rgb2ycbcr(textureLod(currenFrame, coord_onePixel.xw, 0).rgb);
-    variance += tmp * tmp;
+    // Perform swap along x-axis
+    mean += dFdxFine(mean) * t.x;
+    variance += dFdxFine(variance) * t.x;
 
-    mean += tmp = rgb2ycbcr(textureLod(currenFrame, vec2(coord_threePixel.x, coord_onePixel.w), 0).rgb);
-    variance += tmp * tmp;
+    // and contribute a part in diagonal neighbor’s sums
+    mean += texels[5] + texels[6] + texels[7] + texels[9] 
+        + texels[10] + texels[11] + texels[13] + texels[14] + texels[15];
+    variance += texels[5] * texels[5] + texels[6] * texels[6] + texels[7] * texels[7] 
+        + texels[9] * texels[9] + texels[10] * texels[10] + texels[11] * texels[11] 
+        + texels[13] * texels[13] + texels[14] * texels[14] + texels[15] * texels[15];
 
-    mean += tmp = rgb2ycbcr(textureLod(currenFrame, coord_onePixel.zy, 0).rgb);
-    variance += tmp * tmp;
+    // Perform swap along y-axis
+    mean += dFdyFine(mean) * t.y;
+    variance += dFdyFine(variance) * t.y;
 
-    mean += currenColor = tmp = rgb2ycbcr(textureLod(currenFrame, coord_onePixel.xy, 0).rgb);
-    variance += tmp * tmp;
+    // And contribute a part in x-axis neighbor’s sums
+    mean += texels[1] + texels[2] + texels[3] + texels[5] + texels[6] 
+        + texels[7] + texels[9] + texels[10] + texels[11] + texels[13] + texels[14] + texels[15];
+    variance += texels[1] * texels[1] + texels[2] * texels[2] + texels[3] * texels[3] 
+        + texels[5] * texels[5] + texels[6] * texels[6] + texels[7] * texels[7] 
+        + texels[9] * texels[9] + texels[10] * texels[10] + texels[11] * texels[11] 
+        + texels[13] * texels[13] + texels[14] * texels[14] + texels[15] * texels[15];
+    
+    // Perform swap along x-axis
+    mean += dFdxFine(mean) * t.x;
+    variance += dFdxFine(variance) * t.x;
 
+    //And contribute a part in sums of fragment itself:
+    for (int i = 0; i <= 15; ++i)
+    {
+        mean += texels[i];
+        variance += texels[i] * texels[i];
+    }
+    
+    // get current color
+    currenColor = texels[10];
     currenColor += dFdxFine(currenColor) * t.x;
     currenColor += dFdyFine(currenColor) * t.y;
-
-    mean += tmp = rgb2ycbcr(textureLod(currenFrame, vec2(coord_threePixel.x, coord_onePixel.y), 0).rgb);
-    variance += tmp * tmp;
-
-    mean += tmp = rgb2ycbcr(textureLod(currenFrame, vec2(coord_onePixel.z, coord_threePixel.y), 0).rgb);
-    variance += tmp * tmp;
-
-    mean += tmp = rgb2ycbcr(textureLod(currenFrame, vec2(coord_onePixel.x, coord_threePixel.y), 0).rgb);
-    variance += tmp * tmp;
-
-    mean += tmp = rgb2ycbcr(textureLod(currenFrame, coord_threePixel.xy, 0).rgb);
-    variance += tmp * tmp;
-
-    mean += mean + dFdxFine(mean) * t.x;
-    variance += variance + dFdxFine(variance) * t.x;
-
-    mean += mean + dFdyFine(mean) * t.y;
-    variance += variance + dFdyFine(variance) * t.y;
-    
-    vec3 mean_tmp, variance_tmp;
-    mean_tmp = tmp = rgb2ycbcr(textureLod(currenFrame, vec2(coord_onePixel.z, coord_threePixel.w), 0).rgb);
-    variance_tmp = tmp * tmp;
-
-    mean_tmp += tmp = rgb2ycbcr(textureLod(currenFrame, vec2(coord_onePixel.x, coord_threePixel.w), 0).rgb);
-    variance_tmp += tmp * tmp;
-
-    mean_tmp += tmp = rgb2ycbcr(textureLod(currenFrame, coord_threePixel.xw, 0).rgb);
-    variance_tmp += tmp * tmp;
-
-    mean += mean_tmp + mean_tmp + dFdxFine(mean_tmp) * t.x;
-    variance += variance_tmp + variance_tmp + dFdxFine(variance_tmp) * t.x;
-
-    mean_tmp = tmp = rgb2ycbcr(textureLod(currenFrame, vec2(coord_threePixel.z, coord_onePixel.w), 0).rgb);
-    variance_tmp = tmp * tmp;
-
-    mean_tmp += tmp = rgb2ycbcr(textureLod(currenFrame, vec2(coord_threePixel.z, coord_onePixel.y), 0).rgb);
-    variance_tmp += tmp * tmp;
-
-    mean_tmp += tmp = rgb2ycbcr(textureLod(currenFrame, coord_threePixel.zy, 0).rgb);
-    variance_tmp += tmp * tmp;
-
-    mean += mean_tmp + mean_tmp + dFdyFine(mean_tmp) * t.y;
-    variance += variance_tmp + variance_tmp + dFdyFine(variance_tmp) * t.y;
-
-    mean += tmp = rgb2ycbcr(textureLod(currenFrame, coord_threePixel.zw, 0).rgb);
-    variance += tmp * tmp;
     return;
 #endif
 }
@@ -383,22 +346,17 @@ void main()
     bool isMoving = bool(textureLod(stencilMap, fsIn.texCoord, 0).r);
     vec2 prev_uv;
 
-    // color = vec4(vec3(isMoving), 1.0);
-    color = textureLod(currenFrame, fsIn.texCoord, 0) + vec4(vec3(isMoving), 1.0);
-    return;
-
     if (isMoving) {
         prev_uv = fsIn.texCoord - textureLod(velocityBuffer, fsIn.texCoord, 0).rg;
-        color = vec4(10.0 * textureLod(velocityBuffer, fsIn.texCoord, 0).rg, 0.0, 1.0);
-        return;
     } else {
         vec4 p = vec4(2.0 * fsIn.texCoord - 1.0, textureLod(depthMap, fsIn.texCoord, 0).r, 1.0);
         p = params.mPrevInvCur * p;
         prev_uv = p.xy / p.w * 0.5 + 0.5;
     }
 
-    float alpha = 0.9 * float(prev_uv.x <= 1.0 && prev_uv.x >= 0.0 && prev_uv.y <= 1.0 && prev_uv.y >= 0.0);
+    float alpha = 0.95 * float(prev_uv.x <= 1.0 && prev_uv.x >= 0.0 && prev_uv.y <= 1.0 && prev_uv.y >= 0.0);
     alpha *= max(1.0 - length(prev_uv - fsIn.texCoord) * 0.5, 0.0);
+    color = vec4(vec3(alpha), 1.0);
 
     vec3 prevColor = BicubicLagrangeTextureSample(prev_uv);
     vec3 currenColor = varianceClipping(prevColor);

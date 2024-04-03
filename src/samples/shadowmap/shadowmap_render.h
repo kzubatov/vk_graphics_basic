@@ -82,7 +82,7 @@ private:
     TAA
   };
 
-  AA m_AAType = AA::NoAA;
+  AA m_AAType = AA::TAA;
   
   float2 HaltonSequence[8] = {{0.5f, 1.f / 3.f}, {0.25f, 2.f / 3.f},
                               {0.75f, 1.f / 9.f}, {0.125f, 4.f / 9.f},

@@ -5,35 +5,35 @@
 #include "common.h"
 
 layout(location = 0) out vec4 out_fragColor;
-#ifdef TAA_PASS
+#ifdef TAA_PASS_DYNAMIC
 layout(location = 1) out vec2 out_velocity;
 #endif
 
-layout (location = 0 ) in VS_OUT
+layout(location = 0) in VS_OUT
 {
   vec3 wPos;
   vec3 wNorm;
   vec3 wTangent;
   vec2 texCoord;
-#ifdef TAA_PASS
+#ifdef TAA_PASS_DYNAMIC
   vec4 clipPosPrev;
   vec4 clipPosCur;
 #endif
 } surf;
 
-layout(binding = 0, set = 0) uniform AppData
+layout(binding = 0) uniform AppData
 {
   UniformParams Params;
 };
 
-layout (binding = 1) uniform sampler2D shadowMap;
+layout(binding = 1) uniform sampler2D shadowMap;
 
 
 void main()
 {
-  #ifdef TAA_PASS
-    out_velocity = (surf.clipPosPrev.xy / surf.clipPosPrev.w - surf.clipPosCur.xy / surf.clipPosCur.w) * 0.5;
-  #endif
+#ifdef TAA_PASS_DYNAMIC
+  out_velocity = (surf.clipPosPrev.xy / surf.clipPosPrev.w - surf.clipPosCur.xy / surf.clipPosCur.w) * 0.5;
+#endif
   
   const vec4 posLightClipSpace = Params.lightMatrix*vec4(surf.wPos, 1.0f); // 
   const vec3 posLightSpaceNDC  = posLightClipSpace.xyz/posLightClipSpace.w;    // for orto matrix, we don't need perspective division, you can remove it if you want; this is general case;
