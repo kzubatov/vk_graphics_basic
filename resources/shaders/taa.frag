@@ -297,46 +297,24 @@ void getVarianceClippingInfo(out vec3 currenColor, out vec3 mean, out vec3 varia
 }
 #endif
 
-vec3 varianceClipping(inout vec3 prevColor)
+vec3 prevColorRectification(inout vec3 prevColor)
 {
-    vec3 mean = vec3(0);
-    vec3 variance = vec3(0);
     vec3 currenColor;
+    vec3 minC = vec3(2);
+    vec3 maxC = vec3(-2);
 
-#ifdef OPTIMIZED_METHOD
-    getVarianceClippingInfo(currenColor, mean, variance);
-#else
-    for (int i = -WINDOW; i <= WINDOW; ++i)
+    for (int i = -1; i <= 1; ++i)
     {
-        for (int j = -WINDOW; j <= WINDOW; ++j)
+        for (int j = -1; j <= 1; ++j)
         {
-            vec3 tmp = rgb2ycbcr(textureLod(currenFrame, fsIn.texCoord + vec2(i, j) * c_onePixel, 0).rgb);
+            vec3 tmp = rgb2ycbcr(textureLod(currenFrame, fsIn.texCoord + vec2(j, i) * c_onePixel, 0).rgb);
             if (i == 0 && j == 0) currenColor = tmp;
-            mean += tmp;
-            variance += tmp * tmp;
+            minC = min(minC, tmp);
+            maxC = max(maxC, tmp);
         }
     }
-#endif
 
-#if WINDOW == 1
-    mean /= 9.0f;
-    variance = sqrt(variance / 9.0f - mean * mean);
-#elif WINDOW == 2
-    mean /= 25.0f;
-    variance = sqrt(variance / 25.0f - mean * mean);
-#elif WINDOW == 3
-    mean /= 49.0f;
-    variance = sqrt(variance / 49.0f - mean * mean);
-#endif
-
-    vec3 minC = mean - variance;
-    vec3 maxC = mean + variance;
-
-    prevColor = rgb2ycbcr(prevColor);
-    vec3 rayDir = currenColor - prevColor;
-    vec3 t = min((minC - prevColor) / rayDir, (maxC - prevColor) / rayDir);
-    float alpha = clamp(max(t.x, max(t.y, t.z)), 0.0, 1.0);
-    prevColor = ycbcr2rgb(mix(prevColor, currenColor, alpha));
+    prevColor = ycbcr2rgb(clamp(minC, maxC, rgb2ycbcr(prevColor)));
 
     return ycbcr2rgb(currenColor);
 }
@@ -344,22 +322,21 @@ vec3 varianceClipping(inout vec3 prevColor)
 void main() 
 {
     bool isMoving = bool(textureLod(stencilMap, fsIn.texCoord, 0).r);
-    vec2 prev_uv;
+    vec2 texCoordPrev;
 
-    if (isMoving) {
-        prev_uv = fsIn.texCoord - textureLod(velocityBuffer, fsIn.texCoord, 0).rg;
-    } else {
-        vec4 p = vec4(2.0 * fsIn.texCoord - 1.0, textureLod(depthMap, fsIn.texCoord, 0).r, 1.0);
-        p = params.mPrevInvCur * p;
-        prev_uv = p.xy / p.w * 0.5 + 0.5;
+    if (isMoving)
+    {
+        texCoordPrev = fsIn.texCoord - textureLod(velocityBuffer, fsIn.texCoord, 0).rg;
+    }
+    else
+    {
+        vec4 curPos = vec4(fsIn.texCoord * 2.0 - 1.0, textureLod(depthMap, fsIn.texCoord, 0).r, 1.0);
+        curPos = params.mPrevInvCur * curPos; // now prevPos
+        texCoordPrev = curPos.xy / curPos.w * 0.5 + 0.5;
     }
 
-    float alpha = 0.95 * float(prev_uv.x <= 1.0 && prev_uv.x >= 0.0 && prev_uv.y <= 1.0 && prev_uv.y >= 0.0);
-    alpha *= max(1.0 - length(prev_uv - fsIn.texCoord) * 0.5, 0.0);
-    color = vec4(vec3(alpha), 1.0);
-
-    vec3 prevColor = BicubicLagrangeTextureSample(prev_uv);
-    vec3 currenColor = varianceClipping(prevColor);
-
-    color = vec4(mix(currenColor, prevColor, alpha), 1.0);
+    vec3 prevColor   = textureLod(historyBuffer, texCoordPrev, 0).rgb;
+    vec3 currenColor = prevColorRectification(prevColor);
+    float alpha = 0.1 + min(5 * length(fsIn.texCoord - texCoordPrev), 0.2);
+    color = vec4(mix(prevColor, currenColor, alpha), 1.0);
 }

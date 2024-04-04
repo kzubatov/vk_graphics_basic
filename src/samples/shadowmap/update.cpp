@@ -120,7 +120,7 @@ void SimpleShadowmapRender::RecreateResolvePassResources()
           },
         .fragmentShaderOutput =
           {
-            .colorAttachmentFormats = {static_cast<vk::Format>(m_swapchain.GetFormat()), vk::Format::eR8G8Snorm},
+            .colorAttachmentFormats = {static_cast<vk::Format>(m_swapchain.GetFormat()), vk::Format::eR16G16Snorm},
             .depthAttachmentFormat = vk::Format::eD32SfloatS8Uint,
             .stencilAttachmentFormat =vk::Format::eD32SfloatS8Uint,
           },
@@ -190,9 +190,8 @@ void SimpleShadowmapRender::RecreateResolvePassResources()
   case TAA:
     m_prevWorldViewProj = m_worldViewProj;
     taa_info.prevProjViewWorld = m_prevWorldViewProj 
-      * translate4x4({0.f, 0.2f * sinf(4.0f * m_uniforms.time), 0.f}) 
-      * m_pScnMgr->GetInstanceMatrix(sphere_index);
-    
+      * m_pScnMgr->GetInstanceMatrix(sphere_index)
+      * translate4x4({0.6f * sinf(10.0f * m_uniforms.time), 0.4f * cosf(12.0f * m_uniforms.time), 0.f}); 
     mainViewDepth = m_context->createImage(etna::Image::CreateInfo
     {
       .extent = vk::Extent3D{m_width, m_height, 1u},
@@ -211,7 +210,7 @@ void SimpleShadowmapRender::RecreateResolvePassResources()
     {
       .extent = vk::Extent3D{m_width, m_height, 1u},
       .name = "velocity_buffer",
-      .format = vk::Format::eR8G8Snorm,
+      .format = vk::Format::eR16G16Snorm,
       .imageUsage = vk::ImageUsageFlagBits::eColorAttachment | vk::ImageUsageFlagBits::eSampled,
     });
     AAimage = m_context->createImage(etna::Image::CreateInfo
@@ -250,7 +249,7 @@ void SimpleShadowmapRender::ProcessInput(const AppInput &input)
   if(input.keyPressed[GLFW_KEY_B])
   {
 #ifdef WIN32
-    std::system("cd ../resources/shaders && python compile_shadowmap_shaders.py");
+    std::system("cd " VK_GRAPHICS_BASIC_ROOT "/resources/shaders && python compile_shadowmap_shaders.py");
 #else
     std::system("cd ../resources/shaders && python3 compile_shadowmap_shaders.py");
 #endif

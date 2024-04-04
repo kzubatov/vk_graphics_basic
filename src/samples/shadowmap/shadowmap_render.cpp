@@ -225,7 +225,7 @@ void SimpleShadowmapRender::DrawSceneCmd(VkCommandBuffer a_cmdBuff,
     if (i != sphere_index)
       pushConst2M.model = m_pScnMgr->GetInstanceMatrix(i);
     else
-      pushConst2M.model = translate4x4(float3(0.f, 0.2f * sinf(4.0f * m_uniforms.time), 0.f)) * m_pScnMgr->GetInstanceMatrix(sphere_index);
+      pushConst2M.model = m_pScnMgr->GetInstanceMatrix(sphere_index) * translate4x4({0.6f * sinf(10.0f * m_uniforms.time), 0.4f * cosf(12.0f * m_uniforms.time), 0.f});
 
     vkCmdPushConstants(a_cmdBuff, a_pipelineLayout,
       stageFlags, 0, sizeof(pushConst2M), &pushConst2M);
@@ -402,7 +402,7 @@ void SimpleShadowmapRender::BuildCommandBufferSimple(VkCommandBuffer a_cmdBuff, 
 
       auto inst = m_pScnMgr->GetInstanceInfo(sphere_index);
         
-      pushConst2M.model = translate4x4(float3(0.f, 0.2f * sinf(4.0f * m_uniforms.time), 0.f)) * m_pScnMgr->GetInstanceMatrix(sphere_index);
+      pushConst2M.model = m_pScnMgr->GetInstanceMatrix(sphere_index) * translate4x4({0.6f * sinf(10.0f * m_uniforms.time), 0.4f * cosf(12.0f * m_uniforms.time), 0.f});
 
       vkCmdPushConstants(a_cmdBuff, m_dynamicForwardPipeline.getVkPipelineLayout(),
         stageFlags, 0, sizeof(pushConst2M), &pushConst2M);
