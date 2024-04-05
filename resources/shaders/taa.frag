@@ -1,13 +1,8 @@
 #version 450
 #extension GL_ARB_separate_shader_objects : enable
 
-// #define OPTIMIZED_METHOD
+#define OPTIMIZED_METHOD
 #define WINDOW 1
-
-#ifdef OPTIMIZED_METHOD
-#extension GL_GOOGLE_include_directive : require
-#include "diff_swap.h"
-#endif
 
 layout(location = 0) out vec4 color;
 
@@ -103,18 +98,18 @@ vec3 BicubicLagrangeTextureSample (vec2 P)
 vec3 rgb2ycbcr(vec3 rgb) 
 {   
     vec3 ycbcr;
-    ycbcr.x = 0.2126 * rgb.r + 0.7152 * rgb.g + 0.0722 * rgb.b;
-    ycbcr.y = -0.1146 * rgb.r - 0.3854 * rgb.g + 0.5 * rgb.b;
-    ycbcr.z = 0.5 * rgb.r - 0.4542 * rgb.g - 0.0458 * rgb.b;
+    ycbcr.x = 0.299 * rgb.r + 0.587 * rgb.g + 0.114 * rgb.b;
+    ycbcr.y = -0.14713 * rgb.r - 0.28886 * rgb.g + 0.436 * rgb.b;
+    ycbcr.z = 0.615 * rgb.r - 0.51499 * rgb.g - 0.10001 * rgb.b;
     return ycbcr;
 }
 
 vec3 ycbcr2rgb(vec3 ycbcr) 
 {
     vec3 rbg;
-    rbg.x = ycbcr.x + 1.5748 * ycbcr.z;
-    rbg.y = ycbcr.x - 0.1873 * ycbcr.y - 0.4681 * ycbcr.z;
-    rbg.z = ycbcr.x + 1.8556 * ycbcr.y;
+    rbg.x = ycbcr.x + 1.13983 * ycbcr.z;
+    rbg.y = ycbcr.x - 0.39465 * ycbcr.y - 0.5806 * ycbcr.z;
+    rbg.z = ycbcr.x + 2.03211 * ycbcr.y;
     return rbg;
 }
 
@@ -297,26 +292,54 @@ void getVarianceClippingInfo(out vec3 currenColor, out vec3 mean, out vec3 varia
 }
 #endif
 
-vec3 prevColorRectification(inout vec3 prevColor)
+vec3 varianceClipping(vec3 minC, vec3 maxC, vec3 history, vec3 current)
+{
+    vec3 boxCenter = (minC + maxC) * 0.5;
+    vec3 boxExtents = maxC - boxCenter;
+
+    vec3 rayDir = current - history;
+    vec3 rayOrg = history - boxCenter;
+
+    float clipLength = 1.0;
+
+    if (length(rayDir) > 1e-6)
+    {
+        // Intersection using slabs
+        vec3 rcpDir = 1.0 / rayDir;
+        vec3 tNeg = ( boxExtents - rayOrg) * rcpDir;
+        vec3 tPos = (-boxExtents - rayOrg) * rcpDir;
+        clipLength = clamp(max(max(min(tNeg.x, tPos.x), min(tNeg.y, tPos.y)), min(tNeg.z, tPos.z)), 0, 1);
+    }
+
+    return mix(history, current, clipLength);
+}
+
+vec3 prevColorRectification(vec3 prevColor)
 {
     vec3 currenColor;
-    vec3 minC = vec3(2);
-    vec3 maxC = vec3(-2);
+    vec3 mean = vec3(0);
+    vec3 variance = vec3(0);
 
-    for (int i = -1; i <= 1; ++i)
+#ifndef OPTIMIZED_METHOD
+    for (int i = -WINDOW; i <= WINDOW; ++i)
     {
-        for (int j = -1; j <= 1; ++j)
+        for (int j = -WINDOW; j <= WINDOW; ++j)
         {
             vec3 tmp = rgb2ycbcr(textureLod(currenFrame, fsIn.texCoord + vec2(j, i) * c_onePixel, 0).rgb);
             if (i == 0 && j == 0) currenColor = tmp;
-            minC = min(minC, tmp);
-            maxC = max(maxC, tmp);
+            mean += tmp;
+            variance += tmp * tmp;
         }
     }
+#else
+    getVarianceClippingInfo(currenColor, mean, variance);
+#endif
 
-    prevColor = ycbcr2rgb(clamp(minC, maxC, rgb2ycbcr(prevColor)));
+    mean /= 9.0;
+    variance = sqrt(variance / 9.0 - mean * mean);
 
-    return ycbcr2rgb(currenColor);
+    prevColor = rgb2ycbcr(prevColor);
+    return ycbcr2rgb(varianceClipping(mean - variance, mean + variance, prevColor, currenColor));
 }
 
 void main() 
@@ -335,8 +358,9 @@ void main()
         texCoordPrev = curPos.xy / curPos.w * 0.5 + 0.5;
     }
 
-    vec3 prevColor   = textureLod(historyBuffer, texCoordPrev, 0).rgb;
-    vec3 currenColor = prevColorRectification(prevColor);
-    float alpha = 0.1 + min(5 * length(fsIn.texCoord - texCoordPrev), 0.2);
+    vec3 prevColor = textureLod(historyBuffer, texCoordPrev, 0).rgb;
+    prevColor = prevColorRectification(prevColor);
+    vec3 currenColor = textureLod(currenFrame, fsIn.texCoord, 0).rgb;
+    float alpha = 0.1 + min(15 * length(fsIn.texCoord - texCoordPrev), 0.2);
     color = vec4(mix(prevColor, currenColor, alpha), 1.0);
 }
