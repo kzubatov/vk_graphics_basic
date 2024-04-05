@@ -1,7 +1,7 @@
 #version 450
 #extension GL_ARB_separate_shader_objects : enable
 
-#define OPTIMIZED_METHOD
+// #define OPTIMIZED_METHOD
 #define WINDOW 1
 
 layout(location = 0) out vec4 color;
@@ -60,7 +60,7 @@ vec3 CubicLagrange (vec3 A, vec3 B, vec3 C, vec3 D, float t)
         );
 }
 
-vec3 BicubicLagrangeTextureSample (vec2 P)
+vec3 BicubicLagrangeTextureSample(vec2 P)
 {
     vec2 pixel = P * params.resolution + 0.5;
     
@@ -114,7 +114,7 @@ vec3 ycbcr2rgb(vec3 ycbcr)
 }
 
 #ifdef OPTIMIZED_METHOD
-void getVarianceClippingInfo(out vec3 currenColor, out vec3 mean, out vec3 variance)
+void GetVarianceClippingInfo(out vec3 currenColor, out vec3 mean, out vec3 variance)
 {
     const bvec2 isOdd = bvec2(ivec2(gl_FragCoord.xy) & 1);
     const vec2 t = vec2(isOdd) * -2.0 + 1.0;
@@ -292,7 +292,7 @@ void getVarianceClippingInfo(out vec3 currenColor, out vec3 mean, out vec3 varia
 }
 #endif
 
-vec3 varianceClipping(vec3 minC, vec3 maxC, vec3 history, vec3 current)
+vec3 VarianceClipping(vec3 minC, vec3 maxC, vec3 history, vec3 current)
 {
     vec3 boxCenter = (minC + maxC) * 0.5;
     vec3 boxExtents = maxC - boxCenter;
@@ -314,7 +314,7 @@ vec3 varianceClipping(vec3 minC, vec3 maxC, vec3 history, vec3 current)
     return mix(history, current, clipLength);
 }
 
-vec3 prevColorRectification(vec3 prevColor)
+vec3 PrevColorRectification(vec3 prevColor)
 {
     vec3 currenColor;
     vec3 mean = vec3(0);
@@ -332,14 +332,14 @@ vec3 prevColorRectification(vec3 prevColor)
         }
     }
 #else
-    getVarianceClippingInfo(currenColor, mean, variance);
+    GetVarianceClippingInfo(currenColor, mean, variance);
 #endif
 
     mean /= 9.0;
     variance = sqrt(variance / 9.0 - mean * mean);
 
     prevColor = rgb2ycbcr(prevColor);
-    return ycbcr2rgb(varianceClipping(mean - variance, mean + variance, prevColor, currenColor));
+    return ycbcr2rgb(VarianceClipping(mean - variance, mean + variance, prevColor, currenColor));
 }
 
 void main() 
@@ -358,8 +358,7 @@ void main()
         texCoordPrev = curPos.xy / curPos.w * 0.5 + 0.5;
     }
 
-    vec3 prevColor = textureLod(historyBuffer, texCoordPrev, 0).rgb;
-    prevColor = prevColorRectification(prevColor);
+    vec3 prevColor = PrevColorRectification(BicubicLagrangeTextureSample(texCoordPrev));
     vec3 currenColor = textureLod(currenFrame, fsIn.texCoord, 0).rgb;
     float alpha = 0.1 + min(15 * length(fsIn.texCoord - texCoordPrev), 0.2);
     color = vec4(mix(prevColor, currenColor, alpha), 1.0);
