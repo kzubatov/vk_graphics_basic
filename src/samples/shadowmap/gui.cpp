@@ -22,14 +22,29 @@ void SimpleShadowmapRender::SetupGUIElements()
     if (ImGui::SliderFloat("Min height", &pushConstQuad.minHeight, -5.f, pushConstQuad.maxHeight - 0.05f))
       m_heightPass.recreate = true;
 
-    if (ImGui::SliderFloat("Noise scale", &m_heightPass.pushConst.scale, 1.0f, 64.0f))
+    if (ImGui::SliderFloat("Height frequency", &m_heightPass.pushConst.red_noise_scale, 1.0f, 16.0f))
       m_heightPass.recreate = true;
     
-    if (ImGui::Button("Update noise"))
+    if (ImGui::Button("Recreate noise"))
     {
       m_heightPass.recreate = true;
-      m_heightPass.pushConst.seed = float(std::rand()) / RAND_MAX;
-    }    
+      m_heightPass.pushConst.red_y_scale = 10000 + std::rand() % 12000;
+    }
+
+    int polyId = m_polyMode == vk::PolygonMode::eLine;
+    std::array<const char *, 2> types = {"Fill", "Line"};
+    if (ImGui::ListBox("Polygon mode", &polyId, types.data(), 2))
+    {
+      m_polyMode = polyId ? vk::PolygonMode::eLine : vk::PolygonMode::eFill;
+      SetupSimplePipeline();
+    }
+
+    if (polyId && ImGui::SliderInt("Line Width", &m_lineWidth, 1, 4))
+    {
+      SetupSimplePipeline();
+    }
+
+    ImGui::SliderInt("field length", &field_length, 1, 12);
 
     ImGui::Text("Application average %.3f ms/frame (%.1f FPS)", 1000.0f / ImGui::GetIO().Framerate, ImGui::GetIO().Framerate);
 

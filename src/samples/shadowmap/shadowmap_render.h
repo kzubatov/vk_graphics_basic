@@ -98,6 +98,10 @@ private:
     bool drawFSQuad = false;
   } m_input;
 
+  int field_length = 8;
+  int m_lineWidth = 1;
+  vk::PolygonMode m_polyMode = vk::PolygonMode::eFill;
+
   /**
   \brief basic parameters that you usually need for shadow mapping
   */
@@ -137,13 +141,14 @@ private:
     uint32_t height = 2048;
 
     struct
-    {      
-      float seed = float(std::rand()) / RAND_MAX;
-      float scale = 4.0;
+    {
+      int red_y_scale = 11111;
+      float red_noise_scale = 4.0;
+      int dummy[2];
     } pushConst;
 
     etna::Image texture;
-    vk::Format format = vk::Format::eR32Sfloat;
+    vk::Format format = vk::Format::eR16G16Unorm;
 
     etna::GraphicsPipeline pipeline {};
   } m_heightPass;
