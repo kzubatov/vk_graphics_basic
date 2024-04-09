@@ -24,7 +24,7 @@ void SimpleShadowmapRender::SetupGUIElements()
     ImGui::SliderInt("Quad's half length", reinterpret_cast<int *>(&m_tessParams.quadHalfLength), 1, 32);
     ImGui::SliderInt("Quad's Height", reinterpret_cast<int *>(&m_tessParams.quadHeight), 1, 16);
     ImGui::SliderInt("Sqrt of path count", reinterpret_cast<int *>(&m_tessParams.sqrtPatchCount), 1, 16);
-    ImGui::SliderInt("Tessellation, triangle size", reinterpret_cast<int *>(&m_tessParams.triangleSize), 10, 80);
+    ImGui::SliderInt("Tessellation, triangle size", reinterpret_cast<int *>(&m_tessParams.triangleSize), 5, 40);
     ImGui::SliderInt("Tessellation, min level", reinterpret_cast<int *>(&m_tessParams.tessMinLevel), 1, m_tessParams.tessMaxLevel);
     ImGui::SliderInt("Tessellation, max level", reinterpret_cast<int *>(&m_tessParams.tessMaxLevel), 
       m_tessParams.tessMinLevel, deviceProperties.limits.maxTessellationGenerationLevel);

@@ -10,10 +10,10 @@ SimpleShadowmapRender::SimpleShadowmapRender(uint32_t a_width, uint32_t a_height
   m_tessParams.resolution = shader_uvec2(a_width, a_height);
   m_tessParams.tessMinLevel = 1u;
   m_tessParams.tessMaxLevel = 64u;
-  m_tessParams.triangleSize = 20u;
-  m_tessParams.quadHalfLength = 4u;
+  m_tessParams.triangleSize = 10u;
+  m_tessParams.quadHalfLength = 16u;
   m_tessParams.sqrtPatchCount = 4u;
-  m_tessParams.quadHeight = 4u;
+  m_tessParams.quadHeight = 6u;
 }
 
 void SimpleShadowmapRender::InitVulkan(const char** a_instanceExtensions, uint32_t a_instanceExtensionsCount, uint32_t)

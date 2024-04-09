@@ -67,8 +67,8 @@ void SimpleShadowmapRender::LoadScene(const char*, bool)
   PreparePipelines();
   
   m_cam.fov = 45.0f;
-  m_cam.pos = float3(5.f, 5.f, 0.f);
-  m_cam.up  = float3(-1.f, 1.f, 0.f);
+  m_cam.pos = float3(10.f, 5.f, 0.f);
+  m_cam.up  = float3(0.f, 1.f, 0.f);
   m_cam.lookAt = float3(0.f, 0.f, 0.f);
   m_cam.tdist  = 100.f;
 }
