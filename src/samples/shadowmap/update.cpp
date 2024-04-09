@@ -19,9 +19,10 @@ void SimpleShadowmapRender::UpdateView()
   auto mProjFix = OpenglToVulkanProjectionMatrixFix();
   auto mProj = projectionMatrix(m_cam.fov, aspect, 0.1f, 1000.0f);
   auto mLookAt = LiteMath::lookAt(m_cam.pos, m_cam.lookAt, m_cam.up);
-  auto mWorldViewProj = mProjFix * mProj * mLookAt;
   
-  m_worldViewProj = mWorldViewProj;
+  m_tessParams.mViewWorld = mLookAt;
+  m_tessParams.mProj = mProjFix * mProj;
+  m_worldViewProj = mProjFix * mProj  * mLookAt;
   
   ///// calc light matrix
   //
@@ -35,17 +36,18 @@ void SimpleShadowmapRender::UpdateView()
   else
     mProjFix = OpenglToVulkanProjectionMatrixFix(); 
   
-  mLookAt       = LiteMath::lookAt(m_light.cam.pos, m_light.cam.pos + m_light.cam.forward()*10.0f, m_light.cam.up);
-  m_lightMatrix = mProjFix*mProj*mLookAt;
+  m_lightWorldViewProj = mProjFix * mProj * LiteMath::lookAt(m_light.cam.pos, m_light.cam.pos + m_light.cam.forward()*10.0f, m_light.cam.up);
 }
 
 void SimpleShadowmapRender::UpdateUniformBuffer(float a_time)
 {
-  m_uniforms.lightMatrix = m_lightMatrix;
+  m_uniforms.lightMatrix = m_lightWorldViewProj;
   m_uniforms.lightPos    = m_light.cam.pos; //LiteMath::float3(sinf(a_time), 1.0f, cosf(a_time));
   m_uniforms.time        = a_time;
 
   memcpy(m_uboMappedMem, &m_uniforms, sizeof(m_uniforms));
+
+  memcpy(m_tessMappedMem, &m_tessParams, sizeof(m_tessParams));
 }
 
 void SimpleShadowmapRender::ProcessInput(const AppInput &input)
@@ -58,14 +60,25 @@ void SimpleShadowmapRender::ProcessInput(const AppInput &input)
 
   if(input.keyReleased[GLFW_KEY_P])
     m_light.usePerspectiveM = !m_light.usePerspectiveM;
+  
+  if(input.keyPressed[GLFW_KEY_V])
+  {
+    drawWireframe = !drawWireframe;
+    SetupSimplePipeline();
+
+    for (uint32_t i = 0; i < m_framesInFlight; ++i)
+    {
+      BuildCommandBufferSimple(m_cmdBuffersDrawMain[i], m_swapchain.GetAttachment(i).image, m_swapchain.GetAttachment(i).view);
+    }
+  }
 
   // recreate pipeline to reload shaders
   if(input.keyPressed[GLFW_KEY_B])
   {
 #ifdef WIN32
-    std::system("cd ../resources/shaders && python compile_shadowmap_shaders.py");
+    std::system("cd " VK_GRAPHICS_BASIC_ROOT "/resources/shaders && python compile_shadowmap_shaders.py");
 #else
-    std::system("cd ../resources/shaders && python3 compile_shadowmap_shaders.py");
+    std::system("cd " VK_GRAPHICS_BASIC_ROOT "/resources/shaders && python3 compile_shadowmap_shaders.py");
 #endif
 
     etna::reload_shaders();

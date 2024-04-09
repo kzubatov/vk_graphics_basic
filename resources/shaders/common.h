@@ -51,4 +51,17 @@ struct UniformParams
   shader_bool  animateLightColor;
 };
 
+struct TessellationParams
+{
+  shader_uint tessMinLevel;
+  shader_uint tessMaxLevel;
+  shader_uvec2 resolution;
+  shader_uint triangleSize;
+  shader_uint quadHalfLength;
+  shader_uint quadHeight;
+  shader_uint sqrtPatchCount;
+  shader_mat4 mViewWorld;
+  shader_mat4 mProj;
+};
+
 #endif // VK_GRAPHICS_BASIC_COMMON_H

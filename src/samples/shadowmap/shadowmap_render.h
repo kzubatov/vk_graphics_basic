@@ -40,15 +40,17 @@ public:
   Camera GetCurrentCamera() override {return m_cam;}
   void UpdateView();
 
-  void LoadScene(const char *path, bool transpose_inst_matrices) override;
+  void LoadScene(const char *, bool) override;
   void DrawFrame(float a_time, DrawMode a_mode) override;
 
 private:
   etna::GlobalContext* m_context;
   etna::Image mainViewDepth;
+  etna::Image heightMap;
   etna::Image shadowMap;
   etna::Sampler defaultSampler;
   etna::Buffer constants;
+  etna::Buffer tessellationConstants;
 
   VkCommandPool    m_commandPool    = VK_NULL_HANDLE;
 
@@ -63,19 +65,19 @@ private:
   std::vector<VkFence> m_frameFences;
   std::vector<VkCommandBuffer> m_cmdBuffersDrawMain;
 
-  struct
-  {
-    float4x4 projView;
-    float4x4 model;
-  } pushConst2M;
+  VkPhysicalDeviceProperties deviceProperties {};
 
   float4x4 m_worldViewProj;
-  float4x4 m_lightMatrix;    
+  float4x4 m_lightWorldViewProj;
+
+  TessellationParams m_tessParams {};
+  void *m_tessMappedMem = nullptr;
 
   UniformParams m_uniforms {};
-  void* m_uboMappedMem = nullptr;
+  void *m_uboMappedMem = nullptr;
 
   etna::GraphicsPipeline m_basicForwardPipeline {};
+  etna::GraphicsPipeline m_heightPipeline {};
   etna::GraphicsPipeline m_shadowPipeline {};
   
   VkSurfaceKHR m_surface = VK_NULL_HANDLE;
@@ -91,7 +93,6 @@ private:
   std::vector<const char*> m_deviceExtensions;
   std::vector<const char*> m_instanceExtensions;
 
-  std::shared_ptr<SceneManager> m_pScnMgr;
   std::shared_ptr<IRenderGUI> m_pGUIRender;
   
   std::unique_ptr<QuadRenderer> m_pQuad;
@@ -100,6 +101,22 @@ private:
   {
     bool drawFSQuad = false;
   } m_input;
+
+  bool drawWireframe = false;
+  
+  struct HeightMapInfo
+  {
+    bool recreate = true;
+    uint32_t width = 2048u;
+    uint32_t height = 2048u;
+
+    struct
+    {
+      int y_scale = 11111;
+      float noise_scale = 4.0f;
+      int dummy[2] {}; // thank alignment
+    } pushConst;
+  } m_heightMapInfo;
 
   /**
   \brief basic parameters that you usually need for shadow mapping
