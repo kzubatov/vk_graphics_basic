@@ -7,12 +7,14 @@
 layout(location = 0) out vec4 color;
 
 layout(location = 0) in vec2 texCoord;
-layout(location = 1) in vec3 wNorm;
+// layout(location = 1) in vec3 wNorm;
 layout(location = 2) in vec3 wPos;
 
 #ifdef WIREFRAME
 layout(location = 3) noperspective in vec3 dist;
 #endif
+
+layout(binding = 0) uniform sampler2D heightMap;
 
 layout(binding = 2) uniform AppData
 {
@@ -23,6 +25,8 @@ layout(binding = 3) uniform sampler2D shadowMap;
 
 void main()
 {
+  vec3 wNorm = textureLod(heightMap, texCoord, 0).rgb * 2.0 - 1.0;
+
   const vec4 posLightClipSpace = Params.lightMatrix * vec4(wPos, 1.0f); 
   const vec3 posLightSpaceNDC  = posLightClipSpace.xyz/posLightClipSpace.w;    // for orto matrix, we don't need perspective division, you can remove it if you want; this is general case;
   const vec2 shadowTexCoord    = posLightSpaceNDC.xy*0.5f + vec2(0.5f, 0.5f);  // just shift coords from [-1,1] to [0,1]               

@@ -107,14 +107,13 @@ private:
   struct HeightMapInfo
   {
     bool recreate = true;
-    uint32_t width = 2048u;
-    uint32_t height = 2048u;
 
     struct
     {
       int y_scale = 11111;
       float noise_scale = 4.0f;
-      int dummy[2] {}; // thank alignment
+      uint32_t width = 4096;
+      uint32_t height = 4096;
     } pushConst;
   } m_heightMapInfo;
 

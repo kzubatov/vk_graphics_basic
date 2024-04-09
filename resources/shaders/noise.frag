@@ -4,6 +4,8 @@ layout(push_constant) uniform params_t
 {
   int red_y_scale;
   float red_noise_scale;
+  int width;
+  int height;
 } params;
 
 layout(location = 0) in VS_OUT 
@@ -11,7 +13,7 @@ layout(location = 0) in VS_OUT
 	vec2 texCoord;
 } vOut;
 
-layout(location = 0) out vec2 color;
+layout(location = 0) out vec4 color;
 
 // get random vector
 vec2 grad(ivec2 z, int s)
@@ -42,10 +44,8 @@ float noise(vec2 p, int s)
                   dot(grad(i + ivec2(1, 1), s), f - vec2(1.0, 1.0)), u.x), u.y);
 }
 
-void main()
+float getHeight(vec2 uv)
 {
-	vec2 uv = vOut.texCoord * params.red_noise_scale;
-	
 	float f;
   mat2 m = mat2( 1.6,  1.2, -1.2,  1.6 );
 	
@@ -55,5 +55,32 @@ void main()
   f += 0.0625 * noise(uv, params.red_y_scale); uv = m * uv;
   f += 0.03125 * noise(uv, params.red_y_scale);
 
-	color.r = 0.5 * f + 0.5;
+	return 0.5 * f + 0.5;
+}
+
+void main()
+{
+	vec2 uv = vOut.texCoord;
+	vec2 offset = 0.5 / vec2(params.width, params.height);
+
+  float height = 0.25 * (getHeight((uv - offset) * params.red_noise_scale)
+    + getHeight((uv + vec2(offset.x, -offset.y)) * params.red_noise_scale)
+    + getHeight((uv + vec2(-offset.x, offset.y)) * params.red_noise_scale)
+    + getHeight((uv + offset) * params.red_noise_scale));
+  
+  uv += vec2(2.0 * offset.x, 0);
+
+  float height_dx = 0.25 * (getHeight((uv - offset) * params.red_noise_scale)
+    + getHeight((uv + vec2(offset.x, -offset.y)) * params.red_noise_scale)
+    + getHeight((uv + vec2(-offset.x, offset.y)) * params.red_noise_scale)
+    + getHeight((uv + offset) * params.red_noise_scale));
+
+  uv = vOut.texCoord + vec2(0, 2.0 * offset.y);
+
+  float height_dy = 0.25 * (getHeight((uv - offset) * params.red_noise_scale)
+    + getHeight((uv + vec2(offset.x, -offset.y)) * params.red_noise_scale)
+    + getHeight((uv + vec2(-offset.x, offset.y)) * params.red_noise_scale)
+    + getHeight((uv + offset) * params.red_noise_scale));
+
+  color = vec4(normalize(vec3((height_dx - height) * 0.5 / offset.x, 1, (height_dy - height) * 0.5 / offset.y)) * 0.5 + 0.5, height);
 }

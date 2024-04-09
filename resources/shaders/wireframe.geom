@@ -5,10 +5,10 @@ layout(triangle_strip, max_vertices = 3) out;
 // layout(line_strip, max_vertices = 6) out;
 
 layout(location = 0) in vec2 texCoord_in[];
-layout(location = 1) in vec3 wNorm_in[];
+// layout(location = 1) in vec3 wNorm_in[];
 layout(location = 2) in vec3 wPos_in[];
 layout(location = 0) out vec2 texCoord;
-layout(location = 1) out vec3 wNorm;
+// layout(location = 1) out vec3 wNorm;
 layout(location = 2) out vec3 wPos;
 layout(location = 3) noperspective out vec3 dist;
 
@@ -48,21 +48,21 @@ void main()
     
     gl_Position = gl_in[0].gl_Position;
     texCoord = texCoord_in[0];
-    wNorm = wNorm_in[0];
+    // wNorm = wNorm_in[0];
     wPos = wPos_in[0];
     dist = vec3(0, s / distance(viewportPos1, viewportPos2), 0);
     EmitVertex();
 
     gl_Position = gl_in[1].gl_Position;
     texCoord = texCoord_in[1];
-    wNorm = wNorm_in[1];
+    // wNorm = wNorm_in[1];
     wPos = wPos_in[0];
     dist = vec3(0, 0, s / distance(viewportPos0, viewportPos2));
     EmitVertex();
     
     gl_Position = gl_in[2].gl_Position;
     texCoord = texCoord_in[2];
-    wNorm = wNorm_in[2];
+    // wNorm = wNorm_in[2];
     wPos = wPos_in[0];
     dist = vec3(s / distance(viewportPos1, viewportPos0), 0, 0);
     EmitVertex();

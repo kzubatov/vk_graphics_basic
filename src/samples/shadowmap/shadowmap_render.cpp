@@ -33,9 +33,9 @@ void SimpleShadowmapRender::AllocateResources()
 
   heightMap = m_context->createImage(etna::Image::CreateInfo
   {
-    .extent = vk::Extent3D{m_heightMapInfo.width, m_heightMapInfo.height, 1},
+    .extent = vk::Extent3D{m_heightMapInfo.pushConst.width, m_heightMapInfo.pushConst.height, 1},
     .name = "height_map",
-    .format = vk::Format::eR16Unorm,
+    .format = vk::Format::eR8G8B8A8Unorm,
     .imageUsage = vk::ImageUsageFlagBits::eColorAttachment | vk::ImageUsageFlagBits::eSampled,
   });
 
@@ -172,7 +172,7 @@ void SimpleShadowmapRender::SetupSimplePipeline()
       .vertexShaderInput = {},
       .fragmentShaderOutput =
         {
-          .colorAttachmentFormats = {vk::Format::eR16Unorm},
+          .colorAttachmentFormats = {vk::Format::eR8G8B8A8Unorm},
         }
     });
 }
@@ -204,7 +204,7 @@ void SimpleShadowmapRender::BuildCommandBufferSimple(VkCommandBuffer a_cmdBuff, 
   if (m_heightMapInfo.recreate)
   {
     etna::RenderTargetState renderTarget(a_cmdBuff,
-      {0, 0, m_heightMapInfo.width, m_heightMapInfo.height},
+      {0, 0, m_heightMapInfo.pushConst.width, m_heightMapInfo.pushConst.width},
       {{.image = heightMap.get(), .view = heightMap.getView({})}}, {});
 
     vkCmdBindPipeline(a_cmdBuff, VK_PIPELINE_BIND_POINT_GRAPHICS, m_heightPipeline.getVkPipeline());

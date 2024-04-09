@@ -16,10 +16,10 @@ layout(binding = 1) uniform Data
     TessellationParams params; 
 };
 
-uint dLodSphere(vec4 p0, vec4 p1, vec2 t0, vec2 t1)
+float dLodSphere(vec4 p0, vec4 p1, vec2 t0, vec2 t1)
 {
-	p0.y = params.quadHeight * textureLod(heightMap, t0, 0).r;
-	p1.y = params.quadHeight * textureLod(heightMap, t1, 0).r;
+	p0.y = params.quadHeight * textureLod(heightMap, t0, 0).a;
+	p1.y = params.quadHeight * textureLod(heightMap, t1, 0).a;
 
 	vec4 center = 0.5 * (p0 + p1);
 	vec4 view0 = params.mViewWorld * center;
@@ -36,7 +36,7 @@ uint dLodSphere(vec4 p0, vec4 p1, vec2 t0, vec2 t1)
 	vec2 screen1 = (clip1.xy + 1.0) * 0.5 * params.resolution;
 	float d = distance(screen0, screen1);
 
-	return clamp(uint(d / params.triangleSize), params.tessMinLevel, params.tessMaxLevel);
+	return clamp(d / params.triangleSize, float(params.tessMinLevel), float(params.tessMaxLevel));
 }
 
 void main()
